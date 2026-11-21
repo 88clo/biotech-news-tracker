@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Biotech News Tracker</title>
+<style>
+:root{
+  --paper:#F6F5F1; --panel:#FFFFFF; --ink:#191C22; --ink-soft:#565C68;
+  --ink-faint:#8A909C; --line:#E4E2DB; --line-soft:#EEEDE7;
+  --disease:#1E6E63; --disease-bg:#E7F1EE;
+  --modality:#5A45A0; --modality-bg:#ECE8F6;
+  --theme:#A76A16; --theme-bg:#F6ECDC;
+  --accent:var(--disease); --accent-bg:var(--disease-bg);
+  --green:#2C7A4B; --green-bg:#E6F1EA;
+  --shadow:0 1px 2px rgba(20,24,34,.05),0 8px 24px rgba(20,24,34,.06);
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+  --col-w:640px; --gap:26px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);
+  font-size:14.5px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--accent) 35%,transparent)}
+a:hover{border-bottom-color:var(--accent)}
+button{font-family:inherit;cursor:pointer}
+.mono{font-family:var(--mono)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.area-head:focus-visible,.grp-head:focus-visible,.story-head:focus-visible{outline-offset:-2px}
+
+/* ---------- top bar ---------- */
+header.top{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--paper) 86%,transparent);
+  backdrop-filter:saturate(1.3) blur(10px);border-bottom:1px solid var(--line)}
+.top-inner{max-width:1500px;margin:0 auto;padding:14px 26px;display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:11px;user-select:none}
+.brand .glyph{font-family:var(--mono);font-weight:700;font-size:13px;letter-spacing:.5px;
+  color:#fff;background:var(--ink);padding:4px 7px;border-radius:5px;line-height:1}
+.brand h1{font-family:var(--serif);font-weight:600;font-size:20px;margin:0;letter-spacing:.1px}
+.brand .sub{font-family:var(--mono);font-size:11px;color:var(--ink-faint);letter-spacing:.3px}
+
+.tabs{display:flex;gap:4px;background:var(--line-soft);padding:3px;border-radius:9px}
+.tab{border:0;background:transparent;padding:7px 14px;border-radius:7px;font-size:13px;font-weight:600;
+  color:var(--ink-soft);display:flex;align-items:center;gap:7px;transition:.15s}
+.tab .dot{width:8px;height:8px;border-radius:50%}
+.tab[data-cat=disease] .dot{background:var(--disease)} .tab[data-cat=modality] .dot{background:var(--modality)}
+.tab[data-cat=theme] .dot{background:var(--theme)}
+.tab.active{background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
+.tab:hover:not(.active){color:var(--ink)}
+
+.search{margin-left:auto;position:relative;display:flex;align-items:center}
+.search svg{position:absolute;left:11px;width:15px;height:15px;stroke:var(--ink-faint);pointer-events:none}
+.search input{width:270px;max-width:44vw;padding:9px 32px 9px 33px;border:1px solid var(--line);border-radius:9px;
+  background:var(--panel);font-size:13.5px;color:var(--ink);outline:none;transition:.15s}
+.search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg)}
+.search .clear{position:absolute;right:7px;border:0;background:var(--line-soft);color:var(--ink-soft);
+  width:20px;height:20px;border-radius:50%;font-size:13px;line-height:1;display:none}
+.search.has .clear{display:inline-flex;align-items:center;justify-content:center}
+
+/* ---------- controls row ---------- */
+.controls{max-width:1500px;margin:0 auto;padding:12px 26px 0;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.timeline{display:flex;gap:6px;align-items:center;overflow-x:auto;padding-bottom:2px}
+.wk{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:6px 11px;white-space:nowrap;
+  font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:1px;line-height:1.25;transition:.15s}
+.wk b{font-family:var(--sans);font-size:12.5px;color:var(--ink);font-weight:650}
+.wk small{font-size:10px;color:var(--ink-faint)}
+.wk.focus{border-color:var(--accent);background:var(--accent-bg);color:var(--ink)}
+.wk:hover{border-color:var(--accent)}
+.spacer{flex:1}
+.ctrl-btn{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:7px 12px;font-size:12.5px;
+  font-weight:600;color:var(--ink-soft);display:inline-flex;align-items:center;gap:6px}
+.ctrl-btn:hover{border-color:var(--accent);color:var(--ink)}
+.tgls{display:inline-flex;gap:8px;flex-wrap:wrap}
+.tgl::before{content:"";width:8px;height:8px;border-radius:2px;border:1.5px solid var(--ink-faint);
+  background:transparent;flex:0 0 8px;transition:background .15s,border-color .15s}
+.tgl.on{border-color:var(--accent);color:var(--ink);background:var(--accent-bg)}
+.tgl.on::before{background:var(--accent);border-color:var(--accent)}
+.pin-note{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-soft);
+  font-family:var(--mono);background:var(--accent-bg);border:1px solid var(--accent);
+  border-radius:20px;padding:4px 6px 4px 12px;margin-right:2px}
+.pin-note[hidden]{display:none}
+.pin-note b{color:var(--ink);font-weight:700}
+.pin-note button{border:0;background:var(--panel);color:var(--ink-soft);border-radius:50%;
+  width:18px;height:18px;line-height:1;font-size:11px;cursor:pointer;display:inline-flex;
+  align-items:center;justify-content:center}
+.pin-note button:hover{color:var(--ink);background:#fff}
+.grp.pinned{background:var(--accent-bg);border-left-color:var(--accent);border-left-width:2.5px;
+  border-radius:0 6px 6px 0}
+.grp.pinned>.grp-head .glabel{color:var(--accent)}
+
+/* ---------- stage / carousel ---------- */
+.stage{max-width:1500px;margin:14px auto 60px;padding:0 26px;position:relative;overflow:hidden}
+.nav{position:absolute;top:70px;z-index:20;width:40px;height:40px;border-radius:50%;border:1px solid var(--line);
+  background:var(--panel);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center}
+.nav svg{width:18px;height:18px;stroke:var(--ink);fill:none;stroke-width:2}
+.nav.prev{left:8px} .nav.next{right:8px}
+.nav[disabled]{opacity:.32;cursor:default}
+.nav:not([disabled]):hover{border-color:var(--accent)}
+
+.track{display:flex;gap:var(--gap);will-change:transform;transition:transform .42s cubic-bezier(.22,.61,.36,1)}
+@media (prefers-reduced-motion:reduce){.track{transition:none}}
+.weekcol{width:var(--col-w);flex:0 0 var(--col-w);transition:opacity .3s,filter .3s}
+.weekcol.peek{opacity:.5;filter:saturate(.7)}
+.weekcol.peek .col-body{pointer-events:none}
+.weekcol.peek .col-head{cursor:pointer}
+.col-body{transition:transform .4s cubic-bezier(.22,.61,.36,1)}
+@media (prefers-reduced-motion:reduce){.col-body{transition:none}}
+
+.col-head{display:flex;align-items:baseline;gap:10px;padding:6px 4px 12px;border-bottom:2px solid var(--ink);
+  margin-bottom:12px;position:relative}
+.col-head .wlabel{font-family:var(--serif);font-size:22px;font-weight:600}
+.col-head .wcount{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);margin-left:auto}
+.col-head .live{font-family:var(--mono);font-size:10px;letter-spacing:.6px;color:var(--accent);
+  border:1px solid var(--accent);border-radius:4px;padding:1px 5px;text-transform:uppercase}
+
+/* ---------- area / group / story ---------- */
+.area{margin-bottom:6px;border-bottom:1px solid var(--line-soft)}
+.area-head{display:flex;align-items:center;gap:9px;padding:9px 4px;width:100%;border:0;background:transparent;text-align:left}
+.area-head .chev{width:14px;height:14px;flex:0 0 14px;stroke:var(--ink-faint);fill:none;stroke-width:2.2;transition:transform .18s}
+.area.open .area-head .chev{transform:rotate(90deg)}
+.area-head .name{font-family:var(--serif);font-size:16.5px;font-weight:600;letter-spacing:.1px}
+.area-head .tag{width:9px;height:9px;border-radius:50%;background:var(--accent);flex:0 0 9px}
+.area-head .n{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-faint);
+  background:var(--line-soft);padding:2px 7px;border-radius:20px}
+.area-body{display:none;padding:0 0 8px 6px} .area.open>.area-body{display:block}
+
+.grp{margin:2px 0 2px 6px;border-left:1.5px solid var(--line);padding-left:12px}
+.grp-head{display:flex;align-items:center;gap:8px;padding:5px 2px;width:100%;border:0;background:transparent;text-align:left}
+.grp-head .chev{width:12px;height:12px;flex:0 0 12px;stroke:var(--ink-faint);fill:none;stroke-width:2.4;transition:transform .18s}
+.grp.open>.grp-head .chev{transform:rotate(90deg)}
+.grp-head .glabel{font-size:12.5px;font-weight:700;color:var(--accent);letter-spacing:.1px;font-family:var(--mono)}
+.grp-head .n{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--ink-faint)}
+.grp-body{display:none;padding-top:2px} .grp.open>.grp-body{display:block}
+
+.story{border-left:2px solid var(--accent);margin:6px 0;padding-left:12px}
+.story-head{display:flex;gap:9px;align-items:flex-start;width:100%;border:0;background:transparent;text-align:left;padding:3px 2px}
+.story-head .tw{width:13px;height:13px;flex:0 0 13px;margin-top:3px;stroke:var(--ink-faint);fill:none;stroke-width:2.2;transition:transform .18s}
+.story.open .story-head .tw{transform:rotate(90deg)}
+.story-title{font-size:13.7px;line-height:1.42;color:var(--ink)}
+.story-title.neg{color:#b3261e}
+.co{background:#FFE816;color:#1b1b1b;font-weight:700;border-radius:3px;
+  padding:0 3px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.story.hasdetail .story-title{cursor:pointer}
+.mktcap{display:inline-block;margin-left:7px;font-family:var(--mono);font-size:10.5px;font-weight:700;
+  letter-spacing:.3px;color:#fff;background:#12924e;border:1px solid #0f7d43;
+  border-radius:5px;padding:1px 7px;white-space:nowrap;vertical-align:1px;
+  box-shadow:0 1px 1px rgba(16,90,50,.18)}
+.detail{display:none;margin:4px 0 10px 26px}
+.story.open .detail{display:block}
+.detail ul{margin:3px 0;padding-left:16px}
+.detail li{font-size:12.6px;color:var(--ink-soft);line-height:1.45;margin:2px 0}
+.detail li::marker{color:var(--ink-faint)}
+
+.empty{color:var(--ink-faint);font-size:12.5px;font-style:italic;padding:14px 4px}
+
+/* ---------- search results ---------- */
+.results{max-width:1040px;margin:16px auto 70px;padding:0 26px}
+.res-summary{font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin:4px 0 16px}
+.res-summary b{color:var(--ink)}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0 20px}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:20px;padding:6px 13px;font-size:12.5px;color:var(--ink-soft)}
+.chip:hover{border-color:var(--accent);color:var(--ink)}
+.res-group{margin-bottom:22px}
+.res-group h3{font-family:var(--serif);font-size:16px;font-weight:600;margin:0 0 3px;display:flex;align-items:center;gap:9px}
+.res-group .catdot{width:9px;height:9px;border-radius:50%}
+.res-group .crumb{font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin:0 0 10px;padding-left:18px}
+.res-card{border:1px solid var(--line);background:var(--panel);border-radius:11px;padding:12px 15px;margin:8px 0;box-shadow:var(--shadow)}
+.res-card .rt{font-size:13.8px;line-height:1.45}
+.res-card .rmeta{display:flex;align-items:center;gap:9px;margin-bottom:6px}
+.res-card .rweek{font-family:var(--mono);font-size:10.5px;color:#fff;background:var(--accent);padding:2px 7px;border-radius:4px}
+.res-card details{margin-top:7px}
+.res-card summary{font-family:var(--mono);font-size:11px;color:var(--ink-faint);cursor:pointer;list-style:none}
+.res-card summary::-webkit-details-marker{display:none}
+.res-card summary:hover{color:var(--accent)}
+.res-card .detail{display:block;margin-top:6px}
+mark{background:#FBE7A6;color:inherit;padding:0 1px;border-radius:2px}
+
+/* ---- search timeline ---- */
+.tl{position:relative;margin-top:6px}
+.tl-month{position:relative;padding-left:26px;margin-bottom:6px}
+.tl-month::before{content:"";position:absolute;left:6px;top:14px;bottom:-6px;width:2px;background:var(--line)}
+.tl-month:last-child::before{display:none}
+.tl-mhead{display:flex;align-items:center;gap:10px;margin:14px 0 8px;position:relative}
+.tl-dot{position:absolute;left:-26px;top:50%;transform:translateY(-50%);width:13px;height:13px;border-radius:50%;
+  background:var(--panel);border:2.5px solid var(--accent);box-shadow:0 0 0 4px var(--paper)}
+.tl-mlabel{font-family:var(--serif);font-size:16.5px;font-weight:600;color:var(--ink)}
+.tl-mn{font-size:11px;color:var(--ink-faint)}
+.tl-mn::before{content:"";display:inline-block}
+.tl-items{display:flex;flex-direction:column;gap:7px}
+.tl-item{border:1px solid var(--line);background:var(--panel);border-radius:10px;overflow:hidden;box-shadow:var(--shadow)}
+.tl-head{width:100%;display:flex;align-items:flex-start;gap:10px;padding:10px 13px;background:none;border:none;
+  text-align:left;cursor:pointer;font:inherit;color:inherit}
+.tl-head.bare{cursor:default}
+.tl-head:hover:not(.bare){background:var(--accent-bg)}
+.tl-cat{flex:none;width:8px;height:8px;border-radius:50%;margin-top:6px}
+.tl-week{flex:none;font-size:10.5px;color:var(--ink-soft);background:var(--paper);border:1px solid var(--line);
+  padding:2px 7px;border-radius:5px;margin-top:1px}
+.tl-main{flex:1;min-width:0}
+.tl-title{font-size:13.6px;line-height:1.42;color:var(--ink)}
+.tl-title.neg{color:#b3261e}
+.tl-crumb{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);margin-top:3px}
+.tl-chev{flex:none;color:var(--ink-faint);margin-top:2px;transition:transform .18s}
+.tl-item.open .tl-chev{transform:rotate(90deg)}
+.tl-body{display:none;padding:0 13px 12px 31px}
+.tl-item.open .tl-body{display:block}
+.tl-body .detail{display:block}
+@media (prefers-reduced-motion:reduce){.tl-chev{transition:none}}
+
+.footer{max-width:1500px;margin:0 auto;padding:30px 26px 50px;color:var(--ink-faint);font-size:11.5px;
+  font-family:var(--mono);border-top:1px solid var(--line);display:flex;gap:20px;flex-wrap:wrap;align-items:center}
+.footer .leg{display:flex;gap:6px;align-items:center}
+.footer .sw{width:10px;height:10px;border-radius:2px;display:inline-block}
+
+@media (max-width:760px){
+  :root{--col-w:86vw;--gap:14px}
+  .brand h1{font-size:17px} .brand .sub{display:none}
+  .search input{width:150px}
+  .nav{top:56px}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">
+      <span class="glyph">Rx</span>
+      <h1>Biotech News Tracker</h1>
+      <span class="sub" id="rangeLabel"></span>
+    </div>
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-cat="disease"><span class="dot"></span>Diseases</button>
+      <button class="tab" data-cat="modality"><span class="dot"></span>Modalities</button>
+      <button class="tab" data-cat="theme"><span class="dot"></span>Themes</button>
+    </div>
+    <div class="search" id="searchWrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input id="search" type="search" placeholder="Search a disease — see its timeline across months…" autocomplete="off" spellcheck="false">
+      <button class="clear" id="clearSearch" aria-label="Clear search">×</button>
+    </div>
+  </div>
+</header>
+
+<div class="controls" id="controls">
+  <div class="timeline" id="timeline"></div>
+  <div class="spacer"></div>
+  <div class="pin-note" id="pinNote" hidden>Following <b id="pinName"></b> across weeks<button id="pinClear" aria-label="Stop following">✕</button></div>
+  <div class="tgls">
+    <button class="ctrl-btn tgl" id="tglAreas" data-level="area">Areas</button>
+    <button class="ctrl-btn tgl" id="tglInd" data-level="grp">Indications</button>
+    <button class="ctrl-btn tgl" id="tglDetails" data-level="story">Details</button>
+  </div>
+</div>
+
+<main>
+  <section class="stage" id="stage">
+    <button class="nav prev" id="navPrev" aria-label="Previous week"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <button class="nav next" id="navNext" aria-label="Next week"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+    <div class="track" id="track"></div>
+  </section>
+  <section class="results" id="results" style="display:none"></section>
+</main>
+
+<footer class="footer">
+  <span>Biotech News Tracker</span>
+  <span class="leg"><span class="sw" style="background:var(--disease)"></span>Diseases</span>
+  <span class="leg"><span class="sw" style="background:var(--modality)"></span>Modalities</span>
+  <span class="leg"><span class="sw" style="background:var(--theme)"></span>Themes</span>
+  <span class="spacer"></span>
+  <span id="genLabel"></span>
+</footer>
+
+<script>/*__DATA__*/</script>
+<script>
+(function(){
+"use strict";
+const DATA = (window.BIOTECH_DATA||{weeks:[]});
+const WEEKS = DATA.weeks.slice().sort((a,b)=>a.meta.sort-b.meta.sort);
+const CAT_LABEL={disease:'Diseases',modality:'Modalities',theme:'Themes'};
+const CAT_VAR={disease:'--disease',modality:'--modality',theme:'--theme'};
+const CAT_BG={disease:'--disease-bg',modality:'--modality-bg',theme:'--theme-bg'};
+
+// canonical ordering so the same area sits in the same place across weeks
+const ORDER={disease:['Cancer','Cardio','Immuno','Neuro','Metabolic','Infectious','Respiratory','Eye','Muscle','Bone','Blood','Kidney','Derm','Skin','Hearing','Pain','Psych',"Women's health",'Aging'],
+  modality:['Cell therapy','Gene therapy','Gene editing','Drug delivery','Antibody','Devices','AI discovery','AI drug discovery','Techbio','Platforms'],
+  theme:['Big Pharma','China','Pricing','Regulatory','Policy','Payors','Markets','Commercialization','Clinical trials','Distribution','Healthcare delivery','Consumer health','Research funding','EU','Preclinical','Restructuring','Funds','Healthcare']};
+function areaSort(cat,areas){
+  const ord=ORDER[cat]||[];
+  return areas.slice().sort((a,b)=>{
+    let ia=ord.indexOf(a.area), ib=ord.indexOf(b.area);
+    if(ia<0)ia=99; if(ib<0)ib=99;
+    if(ia!==ib)return ia-ib;
+    return countStories(b.children)-countStories(a.children);
+  });
+}
+function countStories(nodes){let n=0;for(const x of nodes){n+= x.type==='story'?1:countStories(x.children);}return n;}
+
+// Global disease frequency per area so the SAME disease sits in the SAME place
+// in every week column -> you can scan across weeks and follow one disease.
+const DISEASE_RANK=(function(){
+  const m={};
+  WEEKS.forEach(w=>(w.categories.disease||[]).forEach(a=>{
+    const mm=m[a.area]||(m[a.area]={});
+    (a.children||[]).forEach(g=>{ if(g.type==='group') mm[g.label]=(mm[g.label]||0)+countStories(g.children); });
+  }));
+  return m;
+})();
+function sortDiseaseGroups(area,nodes){
+  const rank=DISEASE_RANK[area]||{};
+  return nodes.slice().sort((a,b)=>{
+    const am=a.label==='Misc.', bm=b.label==='Misc.';
+    if(am!==bm)return am?1:-1;               // Misc. always last
+    const d=(rank[b.label]||0)-(rank[a.label]||0);  // most-common disease first
+    if(d)return d;
+    return a.label.localeCompare(b.label);
+  });
+}
+
+const BIG_MKT=1000; // $millions; stories with market size >= $1B get highlighted
+const LEVEL_DEFAULT={area:true, grp:true, story:false}; // indications open, details closed
+const state={cat:'disease', focus:Math.min(1,WEEKS.length-1), search:'',
+  levelOpen:Object.assign({},LEVEL_DEFAULT), flip:new Set(), pin:null};
+function isOpen(level,key){ return state.levelOpen[level] !== state.flip.has(key); }
+function levelPrefix(level){ return (level==='area'?'a':level==='grp'?'g':'s')+'|'; }
+
+/* ---------- helpers ---------- */
+function setAccent(cat){
+  document.documentElement.style.setProperty('--accent','var('+CAT_VAR[cat]+')');
+  document.documentElement.style.setProperty('--accent-bg','var('+CAT_BG[cat]+')');
+}
+function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e;}
+// Wrap the leading company name in a highlight span, if the (already HTML-escaped)
+// title begins with it. `company` is null when the story shouldn't be highlighted.
+function escCo(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function withCompany(titleHtml, company){
+  if(!company) return titleHtml;
+  const esc=escCo(company);
+  if(esc && titleHtml.slice(0,esc.length)===esc)
+    return '<span class="co">'+esc+'</span>'+titleHtml.slice(esc.length);
+  return titleHtml;
+}
+const CHEV='<svg class="chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>';
+const TWCHEV='<svg class="tw" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>';
+
+/* ---------- carousel geometry ---------- */
+function layout(){
+  const track=document.getElementById('track');
+  const stage=document.getElementById('stage');
+  const cols=track.children;
+  if(!cols.length)return;
+  const stageW=stage.clientWidth - 52; // minus padding
+  const cs=getComputedStyle(document.documentElement);
+  let colW=parseFloat(cs.getPropertyValue('--col-w'));
+  if(cs.getPropertyValue('--col-w').includes('vw')) colW=window.innerWidth*parseFloat(cs.getPropertyValue('--col-w'))/100;
+  const gap=parseFloat(cs.getPropertyValue('--gap'));
+  const off = (stageW/2) - (state.focus*(colW+gap)) - (colW/2);
+  track.style.transform='translateX('+off+'px)';
+  [...cols].forEach((c,i)=>c.classList.toggle('peek', i!==state.focus));
+  document.getElementById('navPrev').disabled = state.focus<=0;
+  document.getElementById('navNext').disabled = state.focus>=cols.length-1;
+  renderTimeline();
+}
+
+/* ---------- render tree ---------- */
+function keyArea(cat,area){return 'a|'+cat+'|'+area;}
+function keyGrp(cat,path){return 'g|'+cat+'|'+path;}
+function keyStory(wid,cat,path){return 's|'+wid+'|'+cat+'|'+path;}
+
+function renderNodes(nodes,cat,wid,pathPrefix,areaName,curDisease){
+  const frag=document.createDocumentFragment();
+  nodes.forEach((node,idx)=>{
+    const path=pathPrefix+'>'+ (node.label||('#'+idx));
+    if(node.type==='group'){
+      const gk=keyGrp(cat,path);
+      const g=el('div','grp'+(isOpen('grp',gk)?' open':''));
+      g.dataset.area=areaName; g.dataset.label=node.label;
+      if(state.pin && state.pin.area===areaName && state.pin.disease===node.label) g.classList.add('pinned');
+      const head=el('button','grp-head');
+      head.innerHTML=CHEV+'<span class="glabel"></span><span class="n mono"></span>';
+      head.querySelector('.glabel').textContent=node.label;
+      head.querySelector('.n').textContent=countStories(node.children);
+      head.addEventListener('click',()=>{ flipLevel('grp',gk,g); setPin(areaName,node.label); });
+      g.appendChild(head);
+      const body=el('div','grp-body');
+      body.appendChild(renderNodes(node.children,cat,wid,path,areaName,node.label));
+      g.appendChild(body);
+      frag.appendChild(g);
+    }else{
+      const has=node.details&&node.details.length;
+      const sk=keyStory(wid,cat,path+'#'+idx);
+      const big=node.mkt!=null && node.mkt>=BIG_MKT;
+      const s=el('div','story'+(has?' hasdetail':'')+(isOpen('story',sk)?' open':''));
+      const head=el('button','story-head');
+      head.appendChild(el('span',null, has?TWCHEV:'<span class="tw" style="opacity:0"></span>'));
+      const body=el('div');
+      const t=el('div','story-title'+(node.neg?' neg':''));
+      t.innerHTML=withCompany(node.title, big && !node.neg ? node.company : null);
+      if(big && node.mktLabel){ t.appendChild(el('span','mktcap',node.mktLabel)); }
+      body.appendChild(t);
+      head.appendChild(body);
+      head.addEventListener('click',()=>{ if(has)flipLevel('story',sk,s); if(curDisease)setPin(areaName,curDisease); });
+      if(!has && !curDisease) head.style.cursor='default';
+      s.appendChild(head);
+      if(has){
+        const d=el('div','detail'); d.appendChild(detailList(node.details)); s.appendChild(d);
+      }
+      frag.appendChild(s);
+    }
+  });
+  return frag;
+}
+function detailList(details){
+  const ul=el('ul');
+  details.forEach(d=>{
+    const li=el('li',null,d.html);
+    if(d.children&&d.children.length) li.appendChild(detailList(d.children));
+    ul.appendChild(li);
+  });
+  return ul;
+}
+
+function renderColumn(week){
+  const col=el('div','weekcol');
+  const head=el('div','col-head');
+  const isLast = WEEKS.indexOf(week)===WEEKS.length-1;
+  head.innerHTML='<span class="wlabel"></span>'+(isLast?'<span class="live">latest</span>':'')+'<span class="wcount mono"></span>';
+  head.querySelector('.wlabel').textContent=week.meta.label;
+  const areas=areaSort(state.cat, week.categories[state.cat]||[]);
+  head.querySelector('.wcount').textContent=areas.reduce((a,x)=>a+countStories(x.children),0)+' stories';
+  head.addEventListener('click',()=>{ // clicking a peek focuses it
+    navTo(WEEKS.indexOf(week));
+  });
+  col.appendChild(head);
+  const bodyWrap=el('div','col-body');
+  if(!areas.length){ bodyWrap.appendChild(el('div','empty','No '+CAT_LABEL[state.cat].toLowerCase()+' items this week.')); }
+  areas.forEach(area=>{
+    const ak=keyArea(state.cat,area.area);
+    const wrap=el('div','area'+(isOpen('area',ak)?' open':''));
+    const ah=el('button','area-head');
+    ah.innerHTML=CHEV+'<span class="tag"></span><span class="name"></span><span class="n mono"></span>';
+    ah.querySelector('.name').textContent=area.area;
+    ah.querySelector('.n').textContent=countStories(area.children);
+    ah.addEventListener('click',()=>flipLevel('area',ak,wrap));
+    wrap.appendChild(ah);
+    const ab=el('div','area-body');
+    const kids=state.cat==='disease'?sortDiseaseGroups(area.area,area.children):area.children;
+    ab.appendChild(renderNodes(kids,state.cat,week.meta.id,area.area,area.area,null));
+    wrap.appendChild(ab);
+    bodyWrap.appendChild(wrap);
+  });
+  col.appendChild(bodyWrap);
+  return col;
+}
+
+function renderCarousel(){
+  setAccent(state.cat);
+  document.getElementById('results').style.display='none';
+  document.getElementById('stage').style.display='';
+  document.getElementById('controls').style.display='flex';
+  const track=document.getElementById('track');
+  track.innerHTML='';
+  WEEKS.forEach(w=>track.appendChild(renderColumn(w)));
+  updateTglButtons();
+  highlightPinned();
+  showPinNote();
+  requestAnimationFrame(layout);
+  if(state.pin) requestAnimationFrame(()=>alignPinned(false));
+}
+
+/* ---------- expand/collapse state (three levels) ---------- */
+function flipLevel(level,key,elm){
+  const nowOpen=!elm.classList.contains('open');
+  elm.classList.toggle('open',nowOpen);
+  if(nowOpen!==state.levelOpen[level]) state.flip.add(key); else state.flip.delete(key);
+  if(state.pin) requestAnimationFrame(()=>alignPinned(false));
+}
+function toggleLevel(level){
+  state.levelOpen[level]=!state.levelOpen[level];
+  const pc=levelPrefix(level);
+  [...state.flip].forEach(k=>{ if(k.slice(0,2)===pc) state.flip.delete(k); });
+  const sel=level==='area'?'.area':level==='grp'?'.grp':'.story.hasdetail';
+  document.querySelectorAll('#track '+sel).forEach(elm=>elm.classList.toggle('open',state.levelOpen[level]));
+  updateTglButtons();
+  if(state.pin) requestAnimationFrame(()=>alignPinned(false));
+}
+function updateTglButtons(){
+  [['tglAreas','area'],['tglInd','grp'],['tglDetails','story']].forEach(([id,lv])=>{
+    const b=document.getElementById(id); if(b) b.classList.toggle('on',state.levelOpen[lv]);
+  });
+}
+
+/* ---------- follow one indication across weeks ---------- */
+function setPin(area,disease){
+  state.pin={area,disease};
+  highlightPinned(); showPinNote();
+  requestAnimationFrame(()=>alignPinned(true));
+}
+function clearPin(){ state.pin=null; highlightPinned(); showPinNote(); resetColShift(); }
+function showPinNote(){
+  const n=document.getElementById('pinNote'); if(!n)return;
+  if(state.pin){ document.getElementById('pinName').textContent=state.pin.disease; n.hidden=false; }
+  else n.hidden=true;
+}
+function highlightPinned(){
+  document.querySelectorAll('#track .grp.pinned').forEach(g=>g.classList.remove('pinned'));
+  if(!state.pin)return;
+  document.querySelectorAll('#track .grp').forEach(g=>{
+    if(g.dataset.area===state.pin.area && g.dataset.label===state.pin.disease){
+      g.classList.add('pinned'); g.classList.add('open');
+    }
+  });
+}
+function headerOffset(){
+  const h=document.querySelector('header.top');
+  return (h?h.offsetHeight:0)+18;
+}
+function resetColShift(){
+  document.querySelectorAll('#track .col-body').forEach(b=>{ b.style.transform=''; });
+}
+// Give each week column its own vertical shift so the followed indication sits on
+// the SAME row in every column -> you can glance left/right to the prev/next week.
+function alignPinned(smooth){
+  const bodies=[...document.querySelectorAll('#track .col-body')];
+  // Measure each week's NATURAL position with the shift transition turned off,
+  // otherwise a re-align reads a mid-animation position and misaligns.
+  bodies.forEach(b=>{ b.style.transition='none'; b.style.transform=''; });
+  if(!state.pin){ void document.body.offsetHeight; bodies.forEach(b=>{ b.style.transition=''; }); return; }
+  const cols=[...document.querySelectorAll('#track .weekcol')];
+  const focusCol=cols[state.focus];
+  const found=[];
+  cols.forEach(c=>{
+    const body=c.querySelector('.col-body');
+    const g=[...c.querySelectorAll('.grp')].find(x=>x.dataset.area===state.pin.area && x.dataset.label===state.pin.disease);
+    if(g && body){
+      const area=g.closest('.area'); if(area) area.classList.add('open');
+      g.classList.add('open');
+      found.push({body,g,col:c});
+    }
+  });
+  if(!found.length){ bodies.forEach(b=>{ b.style.transition=''; }); return; }
+  void document.getElementById('track').offsetHeight; // reflow after reset + opening groups
+  found.forEach(f=>{ f.A=f.g.getBoundingClientRect().top+window.scrollY; });
+  // Anchor to the week the user clicked (the focused column); every OTHER week
+  // shifts to match it. Fall back to the topmost if the focused week lacks it.
+  let ref=null; found.forEach(f=>{ if(f.col===focusCol) ref=f.A; });
+  if(ref===null) ref=Math.min(...found.map(f=>f.A));
+  bodies.forEach(b=>{ b.style.transition=''; }); // restore transition for the animated move
+  found.forEach(f=>{ f.body.style.transform='translateY('+(ref-f.A)+'px)'; });
+  window.scrollTo({top:Math.max(0,ref-headerOffset()), behavior: smooth?'smooth':'auto'});
+}
+function navTo(i){
+  if(i<0||i>=WEEKS.length||i===state.focus)return;
+  state.focus=i; layout();
+  // No re-align here: alignPinned already shifted every week (not just the
+  // visible ones) onto the same row, so switching weeks needs no vertical move.
+}
+
+/* ---------- timeline ---------- */
+function renderTimeline(){
+  const tl=document.getElementById('timeline'); tl.innerHTML='';
+  WEEKS.forEach((w,i)=>{
+    const b=el('button','wk'+(i===state.focus?' focus':''));
+    const n=(w.categories[state.cat]||[]).reduce((a,x)=>a+countStories(x.children),0);
+    b.innerHTML='<b></b><small></small>';
+    b.querySelector('b').textContent=w.meta.short||w.meta.label;
+    b.querySelector('small').textContent=n+' stories';
+    b.addEventListener('click',()=>navTo(i));
+    tl.appendChild(b);
+  });
+}
+
+/* ---------- search ---------- */
+function esc(s){return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
+function flatten(){ // one-time flat index of every story across all weeks/cats
+  const rows=[];
+  WEEKS.forEach(w=>{
+    ['disease','modality','theme'].forEach(cat=>{
+      (w.categories[cat]||[]).forEach(area=>{
+        walk(area.children,[area.area]);
+        function walk(nodes,crumbs){
+          nodes.forEach(node=>{
+            if(node.type==='group')walk(node.children,crumbs.concat(node.label));
+            else{
+              const detailText=collectText(node.details);
+              rows.push({week:w,cat,crumbs:crumbs.slice(),title:node.title,
+                mkt:node.mkt,mktLabel:node.mktLabel,neg:node.neg,company:node.company,
+                details:node.details, text:(stripTags(node.title)+' '+crumbs.join(' ')+' '+detailText).toLowerCase()});
+            }
+          });
+        }
+      });
+    });
+  });
+  return rows;
+}
+function stripTags(h){const d=document.createElement('div');d.innerHTML=h;return d.textContent||'';}
+function collectText(details){let t='';(details||[]).forEach(d=>{t+=' '+stripTags(d.html)+collectText(d.children);});return t;}
+let INDEX=null;
+
+function highlight(html,terms){
+  if(!terms.length)return html;
+  // highlight in text nodes only
+  const div=document.createElement('div');div.innerHTML=html;
+  const rx=new RegExp('('+terms.map(esc).join('|')+')','ig');
+  (function rec(node){
+    for(const child of [...node.childNodes]){
+      if(child.nodeType===3){
+        const span=document.createElement('span');
+        span.innerHTML=child.nodeValue.replace(rx,'<mark>$1</mark>');
+        if(span.innerHTML!==child.nodeValue) child.replaceWith(...span.childNodes);
+      }else if(child.nodeType===1 && child.tagName!=='MARK'){rec(child);}
+    }
+  })(div);
+  return div.innerHTML;
+}
+
+const MONTHNAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function monthLabel(y,mo){ return (MONTHNAMES[(mo||1)-1]||'')+' '+y; }
+function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+function renderSearch(q){
+  const terms=q.toLowerCase().split(/\s+/).filter(Boolean);
+  if(!INDEX)INDEX=flatten();
+  const hits=INDEX.filter(r=>terms.every(t=>r.text.includes(t)));
+  document.getElementById('stage').style.display='none';
+  document.getElementById('controls').style.display='none';
+  const R=document.getElementById('results'); R.style.display=''; R.innerHTML='';
+  // group hits by calendar month
+  const months=new Map();
+  hits.forEach(h=>{
+    const y=h.week.meta.year||0, mo=h.week.meta.month||0, key=y*100+mo;
+    if(!months.has(key))months.set(key,{key,label:monthLabel(y,mo),items:[]});
+    months.get(key).items.push(h);
+  });
+  const monthArr=[...months.values()].sort((a,b)=>b.key-a.key); // most recent first
+  R.appendChild(el('div','res-summary','<b>'+hits.length+'</b> headline'+(hits.length===1?'':'s')+
+    ' matching “<b>'+escapeHtml(q)+'</b>”'+(monthArr.length?' · across '+monthArr.length+' month'+(monthArr.length===1?'':'s'):'')));
+  if(!hits.length){
+    R.appendChild(el('div','empty','No headlines found. Try a disease like “NSCLC”, “obesity”, “Parkinson’s”, or “ATTR”.'));
+    addChips(R); return;
+  }
+  const tl=el('div','tl');
+  monthArr.forEach(m=>{
+    const mo=el('div','tl-month');
+    const mh=el('div','tl-mhead');
+    mh.innerHTML='<span class="tl-dot"></span><span class="tl-mlabel"></span><span class="tl-mn mono"></span>';
+    mh.querySelector('.tl-mlabel').textContent=m.label;
+    mh.querySelector('.tl-mn').textContent=m.items.length;
+    mo.appendChild(mh);
+    const items=el('div','tl-items');
+    m.items.sort((a,b)=>b.week.meta.sort-a.week.meta.sort)
+      .forEach(it=>items.appendChild(renderTLItem(it,terms)));
+    mo.appendChild(items);
+    tl.appendChild(mo);
+  });
+  R.appendChild(tl);
+}
+
+function renderTLItem(it,terms){
+  const cvar=CAT_VAR[it.cat];
+  const wrap=el('div','tl-item');
+  const has=it.details&&it.details.length;
+  const head=el('button','tl-head'+(has?'':' bare'));
+  const cd=el('span','tl-cat'); cd.style.background='var('+cvar+')';
+  const wk=el('span','tl-week mono'); wk.textContent=it.week.meta.short||it.week.meta.label;
+  const main=el('div','tl-main');
+  const ttl=el('div','tl-title'+(it.neg?' neg':''));
+  const big=it.mkt!=null && it.mkt>=BIG_MKT;
+  ttl.innerHTML=withCompany(highlight(it.title,terms), big && !it.neg ? it.company : null);
+  if(big && it.mktLabel){ ttl.appendChild(el('span','mktcap',it.mktLabel)); }
+  main.appendChild(ttl);
+  const crumbTxt=it.cat==='disease'?it.crumbs.slice(0,2).join(' › '):it.crumbs[0];
+  main.appendChild(el('div','tl-crumb',escapeHtml(crumbTxt)));
+  head.appendChild(cd); head.appendChild(wk); head.appendChild(main);
+  if(has) head.appendChild(el('span','tl-chev',TWCHEV));
+  wrap.appendChild(head);
+  if(has){
+    const body=el('div','tl-body');
+    const d=el('div','detail');const ul=detailList(it.details);
+    d.appendChild(ul);body.appendChild(d);
+    d.querySelectorAll('li').forEach(li=>li.innerHTML=highlight(li.innerHTML,terms));
+    wrap.appendChild(body);
+    head.addEventListener('click',()=>wrap.classList.toggle('open'));
+  }
+  return wrap;
+}
+function topDiseases(n){
+  const all={};
+  Object.values(DISEASE_RANK).forEach(mm=>Object.entries(mm).forEach(([k,v])=>{
+    if(k!=='Misc.')all[k]=(all[k]||0)+v;}));
+  return Object.entries(all).sort((a,b)=>b[1]-a[1]).slice(0,n).map(x=>x[0]);
+}
+function addChips(R){
+  const common=topDiseases(10);
+  if(!common.length)return;
+  const c=el('div','chips');
+  common.forEach(x=>{const b=el('button','chip',x);
+    b.addEventListener('click',()=>{document.getElementById('search').value=x;doSearch(x);});
+    c.appendChild(b);});
+  R.appendChild(c);
+}
+
+/* ---------- events ---------- */
+function doSearch(q){
+  state.search=q.trim();
+  document.getElementById('searchWrap').classList.toggle('has', !!state.search);
+  if(state.search) renderSearch(state.search); else renderCarousel();
+}
+document.getElementById('search').addEventListener('input',e=>doSearch(e.target.value));
+document.getElementById('clearSearch').addEventListener('click',()=>{document.getElementById('search').value='';doSearch('');document.getElementById('search').focus();});
+document.getElementById('tabs').addEventListener('click',e=>{
+  const t=e.target.closest('.tab'); if(!t)return;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active'); state.cat=t.dataset.cat;
+  if(state.search)renderSearch(state.search); else renderCarousel();
+});
+document.getElementById('navPrev').addEventListener('click',()=>navTo(state.focus-1));
+document.getElementById('navNext').addEventListener('click',()=>navTo(state.focus+1));
+document.getElementById('tglAreas').addEventListener('click',()=>toggleLevel('area'));
+document.getElementById('tglInd').addEventListener('click',()=>toggleLevel('grp'));
+document.getElementById('tglDetails').addEventListener('click',()=>toggleLevel('story'));
+document.getElementById('pinClear').addEventListener('click',clearPin);
+window.addEventListener('keydown',e=>{
+  if(document.activeElement===document.getElementById('search'))return;
+  if(state.search)return;
+  if(e.key==='ArrowLeft')navTo(state.focus-1);
+  if(e.key==='ArrowRight')navTo(state.focus+1);
+});
+window.addEventListener('resize',()=>{if(!state.search){layout(); if(state.pin) alignPinned(false);}});
+
+/* ---------- init ---------- */
+function init(){
+  if(!WEEKS.length){document.getElementById('track').innerHTML='<div class="empty">No data. Run parse_notes.py to generate the dashboard.</div>';return;}
+  document.getElementById('rangeLabel').textContent=WEEKS[0].meta.label+'  —  '+WEEKS[WEEKS.length-1].meta.label;
+  document.getElementById('genLabel').textContent=WEEKS.length+' weeks indexed';
+  renderCarousel();
+}
+init();
+})();
+</script>
+</body>
+</html>
