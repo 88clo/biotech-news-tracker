@@ -222,26 +222,86 @@ mark{background:#FBE7A6;color:inherit;padding:0 1px;border-radius:2px}
   .search input{width:150px}
   .nav{top:56px}
 }
-/* ---- inline indication insight ---- */
+/* ---- grp header + toast ---- */
 .grp-head .n{margin-left:auto}
-.ins{margin:1px 0 6px 20px;display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap}
-.weekcol.peek .ins{display:none}            /* focused column only */
-.ins-line{font-size:11px;line-height:1.65;color:var(--ink-soft);flex:1;min-width:0}
-.ins-k{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-faint)}
-.ins-co{color:var(--ink);font-weight:700}
-.ins-sub{color:var(--ink-soft)}
-.ins-mom .up{color:#2C7A4B;font-weight:700}
-.ins-mom .dn{color:#b3261e;font-weight:700}
-.ins-hot{color:#b06a12;font-weight:600}
-.ins-gap{color:#5b3aa6}
-.ins-dot{margin:0 6px;color:var(--ink-faint)}
-.ins-brief{flex:0 0 auto;border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);
-  font:inherit;font-size:10px;font-weight:600;border-radius:12px;padding:2px 9px;cursor:pointer;white-space:nowrap}
-.ins-brief:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-bg)}
-.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(12px);z-index:50;
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(12px);z-index:60;
   background:var(--ink);color:#fff;font-size:12.5px;padding:10px 16px;border-radius:9px;
   box-shadow:0 6px 24px rgba(20,24,34,.22);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:88vw;text-align:center}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ---- analysis side panel ---- */
+:root{--panel-w:380px;--hdr-h:62px}
+.sidepanel{position:fixed;top:var(--hdr-h);right:0;width:var(--panel-w);height:calc(100vh - var(--hdr-h));
+  background:var(--panel);border-left:1px solid var(--line);box-shadow:-8px 0 24px rgba(20,24,34,.06);
+  z-index:30;overflow-y:auto;transform:translateX(100%);transition:transform .32s cubic-bezier(.22,.61,.36,1);
+  overscroll-behavior:contain}
+body.has-panel .sidepanel{transform:none}
+body.has-panel main{padding-right:var(--panel-w)}
+@media (prefers-reduced-motion:reduce){.sidepanel{transition:none}}
+.sp-head{position:sticky;top:0;background:var(--panel);border-bottom:1.5px solid var(--ink);padding:14px 16px 11px;z-index:2}
+.sp-crumb{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--accent)}
+.sp-title{font-family:var(--serif);font-size:21px;line-height:1.12;color:var(--ink);margin:2px 0 0}
+.sp-close{position:absolute;top:12px;right:12px;width:26px;height:26px;border:1px solid var(--line);
+  background:var(--panel);border-radius:7px;color:var(--ink-soft);font-size:15px;line-height:1;cursor:pointer}
+.sp-close:hover{border-color:var(--accent);color:var(--ink)}
+.sp-stats{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+.sp-stat{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:5px 9px;min-width:0}
+.sp-stat b{font-size:15px;color:var(--ink);display:block;line-height:1.1}
+.sp-stat.pos b{color:#2C7A4B}.sp-stat.neg b{color:#b3261e}
+.sp-stat span{font-size:9px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.3px}
+.sp-body{padding:4px 16px 48px}
+.sp-sec{margin-top:18px}
+.sp-sec-h{font-family:var(--serif);font-size:14.5px;color:var(--ink);margin:0 0 3px;display:flex;align-items:baseline;gap:7px}
+.sp-sec-sub{font-size:10.5px;color:var(--ink-faint);font-family:var(--sans)}
+.sp-sec-bar{height:1.5px;background:var(--ink);margin:5px 0 9px;opacity:.85}
+/* momentum-over-time strip */
+.sp-trend{display:flex;gap:4px;align-items:stretch}
+.sp-tw{flex:1;min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:7px;padding:6px 4px;text-align:center}
+.sp-tw-k{font-family:var(--mono);font-size:8.5px;color:var(--ink-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sp-tw-v{font-size:11px;font-weight:700;margin-top:3px;display:flex;gap:4px;justify-content:center}
+.sp-tw-v .u{color:#2C7A4B}.sp-tw-v .d{color:#b3261e}.sp-tw-v .z{color:var(--ink-faint)}
+/* concept trajectory rows */
+.sp-con{border:1px solid var(--line);border-radius:9px;padding:8px 10px;margin-bottom:7px;background:var(--panel)}
+.sp-con-h{display:flex;align-items:center;gap:7px}
+.sp-con-ar{font-size:13px;font-weight:800;flex:0 0 auto;width:15px;text-align:center}
+.sp-con.rising .sp-con-ar{color:#2C7A4B}.sp-con.falling .sp-con-ar{color:#b3261e}
+.sp-con.contested .sp-con-ar{color:#c17d10}.sp-con.emerging .sp-con-ar{color:#5b6270}
+.sp-con-k{font-weight:700;font-size:12.5px;color:var(--ink);flex:1;min-width:0}
+.sp-con-tag{font-family:var(--mono);font-size:8.5px;text-transform:uppercase;letter-spacing:.4px;padding:1px 6px;border-radius:9px;flex:0 0 auto}
+.sp-con.rising .sp-con-tag{background:#E6F1EA;color:#2C7A4B}
+.sp-con.falling .sp-con-tag{background:#fbe9e7;color:#b3261e}
+.sp-con.contested .sp-con-tag{background:#fcf0db;color:#9a5a12}
+.sp-con.emerging .sp-con-tag{background:#eef0f3;color:#5b6270}
+.sp-con-ev{margin:5px 0 0;padding-left:22px;list-style:none}
+.sp-con-ev li{font-size:11px;line-height:1.45;color:var(--ink-soft);margin:2px 0;display:flex;gap:6px}
+.sp-con-ev .mk{flex:0 0 auto;font-weight:700}
+.sp-con-ev .mk.u{color:#2C7A4B}.sp-con-ev .mk.d{color:#b3261e}.sp-con-ev .mk.z{color:var(--ink-faint)}
+.sp-con-ev .ew{flex:0 0 auto;font-family:var(--mono);font-size:9px;color:var(--ink-faint)}
+/* frontier + timeline compact rows */
+.sp-row{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line-soft)}
+.sp-row:last-child{border-bottom:0}
+.sp-row-wk{flex:0 0 auto;font-family:var(--mono);font-size:9px;color:var(--ink-soft);background:var(--paper);
+  border:1px solid var(--line);padding:1px 5px;border-radius:5px;height:fit-content;margin-top:2px}
+.sp-row-main{flex:1;min-width:0}
+.sp-row-t{font-size:11.5px;line-height:1.4;color:var(--ink)}
+.sp-row-t.neg{color:#b3261e}
+.sp-row-m{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
+.sp-mc{font-family:var(--mono);font-size:8.5px;font-weight:600;padding:1px 5px;border-radius:4px;background:#eceef1;color:#5b6270;border:1px solid #e0e2e8}
+.sp-mc.st{background:#eef2ff;color:#3d4a8a;border-color:#dde3fb}
+.sp-mc.mk{background:#12924e;color:#fff;border-color:#0f7d43}
+/* breakthrough */
+.sp-ws{font-size:11px;color:var(--ink-soft);line-height:1.7;margin-bottom:10px}
+.sp-ws b{color:var(--ink)}
+.sp-ws .gap{color:#5b3aa6}
+.sp-copy{width:100%;border:0;background:var(--accent);color:#fff;font:inherit;font-size:12.5px;font-weight:600;
+  border-radius:9px;padding:10px;cursor:pointer}
+.sp-copy:hover{filter:brightness(1.05)}
+.sp-copy-sub{font-size:10.5px;color:var(--ink-faint);text-align:center;margin-top:6px;line-height:1.4}
+@media (max-width:1040px){
+  :root{--panel-w:330px}
+  body.has-panel main{padding-right:0}
+  .sidepanel{box-shadow:-8px 0 40px rgba(20,24,34,.18)}
+}
 </style>
 </head>
 <body>
@@ -284,6 +344,7 @@ mark{background:#FBE7A6;color:inherit;padding:0 1px;border-radius:2px}
   </section>
   <section class="results" id="results" style="display:none"></section>
 </main>
+<aside class="sidepanel" id="sidepanel" aria-hidden="true"></aside>
 
 <footer class="footer">
   <span>Biotech News Tracker</span>
@@ -343,7 +404,7 @@ function sortDiseaseGroups(area,nodes){
 const BIG_MKT=750; // $millions; a drug at/above this peak-sales figure is "interesting"
 const LEVEL_DEFAULT={area:true, grp:true, story:false}; // indications open, details closed
 const state={cat:'disease', focus:Math.min(1,WEEKS.length-1), search:'',
-  levelOpen:Object.assign({},LEVEL_DEFAULT), flip:new Set(), pin:null};
+  levelOpen:Object.assign({},LEVEL_DEFAULT), flip:new Set(), pin:null, panel:null};
 function isOpen(level,key){ return state.levelOpen[level] !== state.flip.has(key); }
 function levelPrefix(level){ return (level==='area'?'a':level==='grp'?'g':'s')+'|'; }
 
@@ -420,13 +481,10 @@ function renderNodes(nodes,cat,wid,pathPrefix,areaName,curDisease){
       head.innerHTML=CHEV+'<span class="glabel"></span><span class="n mono"></span>';
       head.querySelector('.glabel').textContent=node.label;
       head.querySelector('.n').textContent=countStories(node.children);
-      head.addEventListener('click',()=>{ flipLevel('grp',gk,g); setPin(areaName,node.label); });
+      head.addEventListener('click',()=>{ flipLevel('grp',gk,g);
+        if(cat==='disease' && node.label!=='Misc.') openPanel(areaName,node.label);
+        else setPin(areaName,node.label); });
       g.appendChild(head);
-      // distilled cross-week insight line (focused column only, via CSS)
-      if(cat==='disease' && node.label!=='Misc.'){
-        const ins=renderInsight(areaName,node.label);
-        if(ins) g.appendChild(ins);
-      }
       const body=el('div','grp-body');
       body.appendChild(renderNodes(node.children,cat,wid,path,areaName,node.label));
       g.appendChild(body);
@@ -443,7 +501,8 @@ function renderNodes(nodes,cat,wid,pathPrefix,areaName,curDisease){
       appendMkt(t, node);
       body.appendChild(t);
       head.appendChild(body);
-      head.addEventListener('click',()=>{ if(has)flipLevel('story',sk,s); if(curDisease)setPin(areaName,curDisease); });
+      head.addEventListener('click',()=>{ if(has)flipLevel('story',sk,s);
+        if(curDisease){ if(cat==='disease'&&curDisease!=='Misc.') openPanel(areaName,curDisease); else setPin(areaName,curDisease); } });
       if(!has && !curDisease) head.style.cursor='default';
       s.appendChild(head);
       if(has){
@@ -508,6 +567,9 @@ function renderCarousel(){
   updateTglButtons();
   highlightPinned();
   showPinNote();
+  // restore the analysis panel if an indication is being followed
+  document.body.classList.toggle('has-panel', !!state.panel);
+  if(state.panel){ const sp=document.getElementById('sidepanel'); sp.setAttribute('aria-hidden','false'); if(!sp.childNodes.length) renderPanel(state.panel.area,state.panel.disease); }
   requestAnimationFrame(layout);
   if(state.pin) requestAnimationFrame(()=>alignPinned(false));
 }
@@ -540,7 +602,13 @@ function setPin(area,disease){
   highlightPinned(); showPinNote();
   requestAnimationFrame(()=>alignPinned(true));
 }
-function clearPin(){ state.pin=null; highlightPinned(); showPinNote(); resetColShift(); }
+function clearPin(){
+  state.pin=null; state.panel=null;
+  document.body.classList.remove('has-panel');
+  const sp=document.getElementById('sidepanel'); if(sp)sp.setAttribute('aria-hidden','true');
+  highlightPinned(); showPinNote(); resetColShift();
+  requestAnimationFrame(()=>layout());
+}
 function showPinNote(){
   const n=document.getElementById('pinNote'); if(!n)return;
   if(state.pin){ document.getElementById('pinName').textContent=state.pin.disease; n.hidden=false; }
@@ -670,6 +738,7 @@ function renderSearch(q){
   const hits=INDEX.filter(r=>terms.every(t=>r.text.includes(t)));
   document.getElementById('stage').style.display='none';
   document.getElementById('controls').style.display='none';
+  document.body.classList.remove('has-panel');   // panel hidden while searching (state kept)
   const R=document.getElementById('results'); R.style.display=''; R.innerHTML='';
   // group hits by calendar month
   const months=new Map();
@@ -795,29 +864,156 @@ function leaderBits(r){
   return {co, sub:bits.join(' · ')};
 }
 // one-line, cross-week synthesis shown under an indication (focused column only via CSS)
-function renderInsight(area,disease){
-  const I=indicationInsight(area,disease);
-  if(!I || (!I.leader && !I.setbacks)) return null;
-  const box=el('div','ins');
-  const parts=[];
-  if(I.leader){ const L=leaderBits(I.leader);
-    parts.push('<span class="ins-k">Frontier</span> <b class="ins-co">'+escapeHtml(L.co)+'</b>'+
-      (L.sub?' <span class="ins-sub">'+escapeHtml(L.sub)+'</span>':'')); }
-  parts.push('<span class="ins-mom"><span class="up">'+I.advancing+'&#9650;</span> <span class="dn">'+I.setbacks+'&#9660;</span></span>');
-  if(I.crowded.length)
-    parts.push('<span class="ins-k">crowded</span> <span class="ins-hot">'+escapeHtml(I.crowded.map(([t,c])=>t+'×'+c).slice(0,2).join(', '))+'</span>');
-  if(I.whitespace.length)
-    parts.push('<span class="ins-k">white space</span> <span class="ins-gap">'+escapeHtml(I.whitespace.slice(0,3).join(', '))+'</span>');
-  const line=el('div','ins-line'); line.innerHTML=parts.join('<span class="ins-dot">·</span>');
-  box.appendChild(line);
-  const brief=el('button','ins-brief'); brief.innerHTML='&#10022; breakthrough brief';
-  brief.title='Copy a data-grounded prompt for non-incremental drug ideas in '+disease;
-  brief.addEventListener('click',e=>{ e.stopPropagation();
-    copyText(breakthroughPrompt(area,disease,I.rows));
-    toast('Breakthrough brief for '+disease+' copied — paste into Claude for ideas'); });
-  box.appendChild(brief);
-  return box;
+// Group an indication's assets into "concepts" (by target, else modality) and
+// classify each as rising / contested / struggling / emerging over time.
+// a story is a "win" if it has positive data OR is an approved/marketed asset
+function assetWin(n){ return !n.neg && (n.pos || (n.stageRank||0)>=6); }
+function conceptTrajectories(rows){
+  const g={};
+  rows.forEach(r=>{
+    const n=r.node;
+    const key=n.target || n.modality || 'Other';
+    (g[key]=g[key]||{key,items:[],pos:0,neg:0}).items.push(r);
+    if(n.neg)g[key].neg++; else if(assetWin(n))g[key].pos++;
+  });
+  const arr=Object.values(g).map(c=>{
+    let cls,tag,ar;
+    if(c.pos>0&&c.neg===0){cls='rising';tag='validating';ar='▲';}
+    else if(c.pos>0&&c.neg>0){cls='contested';tag='contested';ar='◆';}
+    else if(c.neg>0&&c.pos===0){cls='falling';tag='struggling';ar='▼';}
+    else{cls='emerging';tag='emerging';ar='○';}
+    c.items.sort((a,b)=>b.week.meta.sort-a.week.meta.sort);
+    return Object.assign(c,{cls,tag,ar,score:(c.pos-c.neg)*10+c.items.length});
+  });
+  const rank={rising:0,contested:1,falling:2,emerging:3};
+  arr.sort((a,b)=> rank[a.cls]-rank[b.cls] || b.items.length-a.items.length || b.score-a.score);
+  return arr;
 }
+// per-week sentiment, oldest->newest (the trend over time)
+function weeklyTrend(rows){
+  const m=new Map();
+  WEEKS.forEach(w=>m.set(w.meta.label,{k:w.meta.short||w.meta.label,sort:w.meta.sort,up:0,dn:0,n:0}));
+  rows.forEach(r=>{ const o=m.get(r.week.meta.label); if(!o)return; o.n++;
+    if(r.node.neg)o.dn++; else if(assetWin(r.node))o.up++; });
+  return [...m.values()].filter(o=>o.n>0).sort((a,b)=>a.sort-b.sort);
+}
+function spRow(r,opts){
+  const n=r.node, row=el('div','sp-row');
+  const wk=el('span','sp-row-wk'); wk.textContent=r.week.meta.short||r.week.meta.label; row.appendChild(wk);
+  const main=el('div','sp-row-main');
+  const t=el('div','sp-row-t'+(n.neg?' neg':'')); t.innerHTML=withCompany(n.title,n.company,coClass(n)); main.appendChild(t);
+  if(opts&&opts.meta){ const m=el('div','sp-row-m');
+    let h=''; if(n.stage)h+='<span class="sp-mc st">'+escapeHtml(n.stage)+'</span>';
+    if(n.modality)h+='<span class="sp-mc">'+escapeHtml(n.modality)+'</span>';
+    if(n.mkt!=null)h+='<span class="sp-mc mk">'+escapeHtml(n.mktLabel)+'</span>';
+    m.innerHTML=h; main.appendChild(m); }
+  row.appendChild(main); return row;
+}
+function section(t,sub){
+  const s=el('div','sp-sec');
+  s.innerHTML='<div class="sp-sec-h">'+escapeHtml(t)+(sub?' <span class="sp-sec-sub">'+escapeHtml(sub)+'</span>':'')+'</div><div class="sp-sec-bar"></div>';
+  return s;
+}
+
+function renderPanel(area,disease){
+  const sp=document.getElementById('sidepanel'); sp.innerHTML=''; sp.setAttribute('aria-hidden','false');
+  const rows=collectIndication(area,disease);
+  const I=indicationInsight(area,disease);
+  const neg=rows.filter(r=>r.node.neg), adv=rows.filter(r=>assetWin(r.node));
+  const mkts=rows.map(r=>r.node.mkt).filter(x=>x!=null);
+  // header
+  const head=el('div','sp-head');
+  head.innerHTML='<div class="sp-crumb">'+escapeHtml(area)+' · indication trends</div><h2 class="sp-title">'+escapeHtml(disease)+'</h2>';
+  const close=el('button','sp-close','✕'); close.title='Close'; close.addEventListener('click',closePanel); head.appendChild(close);
+  const stats=el('div','sp-stats');
+  stats.innerHTML=
+    spStat(rows.length,'assets')+spStat(adv.length,'advancing','pos')+spStat(neg.length,'setbacks','neg')+
+    spStat(mkts.length?fmtB(Math.max(...mkts)):'—','top mkt');
+  head.appendChild(stats); sp.appendChild(head);
+  const body=el('div','sp-body'); sp.appendChild(body);
+
+  // momentum over time
+  const tr=weeklyTrend(rows);
+  if(tr.length){
+    const s=section('Momentum over time','advances vs setbacks, by week');
+    const strip=el('div','sp-trend');
+    tr.forEach(o=>{ const c=el('div','sp-tw');
+      c.innerHTML='<div class="sp-tw-k">'+escapeHtml(o.k)+'</div><div class="sp-tw-v">'+
+        (o.up?'<span class="u">'+o.up+'▲</span>':'')+(o.dn?'<span class="d">'+o.dn+'▼</span>':'')+
+        (!o.up&&!o.dn?'<span class="z">'+o.n+'</span>':'')+'</div>';
+      strip.appendChild(c); });
+    s.appendChild(strip); body.appendChild(s);
+  }
+
+  // concepts rising vs failing — the core trend view
+  const cons=conceptTrajectories(rows);
+  if(cons.length){
+    const s=section('Concepts rising vs failing','mechanisms gaining or losing ground in this indication');
+    cons.forEach(c=>{
+      const box=el('div','sp-con '+c.cls);
+      const h=el('div','sp-con-h');
+      h.innerHTML='<span class="sp-con-ar">'+c.ar+'</span><span class="sp-con-k">'+escapeHtml(c.key)+'</span>'+
+        '<span class="sp-con-tag">'+c.tag+'</span>';
+      box.appendChild(h);
+      const ul=el('ul','sp-con-ev');
+      c.items.slice(0,4).forEach(r=>{ const n=r.node;
+        const mk=n.neg?'d':(n.pos?'u':'z'), sym=n.neg?'▼':(n.pos?'▲':'•');
+        const li=el('li');
+        li.innerHTML='<span class="mk '+mk+'">'+sym+'</span><span class="ew">'+escapeHtml(r.week.meta.short||'')+'</span>'+
+          '<span>'+escapeHtml((n.company?n.company+' — ':'')+shortDrug(n))+'</span>';
+        ul.appendChild(li); });
+      box.appendChild(ul); s.appendChild(box);
+    });
+    body.appendChild(s);
+  }
+
+  // frontier
+  const front=rows.filter(r=>!r.node.neg).sort((a,b)=>frontierScore(b)-frontierScore(a)).slice(0,5);
+  if(front.length){
+    const s=section('Frontier · best-in-disease','the leaders any new drug must beat');
+    front.forEach(r=>s.appendChild(spRow(r,{meta:true}))); body.appendChild(s);
+  }
+
+  // timeline
+  const s2=section('Full timeline','every story in this indication, newest first');
+  rows.slice().sort((a,b)=>b.week.meta.sort-a.week.meta.sort).forEach(r=>s2.appendChild(spRow(r,{meta:false})));
+  body.appendChild(s2);
+
+  // breakthrough
+  const s3=section('Breakthrough ideas','turn this landscape into non-incremental concepts');
+  const ws=el('div','sp-ws');
+  const parts=[];
+  if(I&&I.crowded.length)parts.push('<b>Crowded:</b> '+escapeHtml(I.crowded.map(([t,c])=>t+'×'+c).join(', '))+' — differentiation is hard here.');
+  const struggling=cons.filter(c=>c.cls==='falling').map(c=>c.key);
+  if(struggling.length)parts.push('<b>Failing approaches:</b> '+escapeHtml(struggling.slice(0,4).join(', '))+' — unmet need persists.');
+  if(I&&I.whitespace.length)parts.push('<b>Untried here:</b> <span class="gap">'+escapeHtml(I.whitespace.slice(0,6).join(', '))+'</span>.');
+  ws.innerHTML=parts.join('<br>'); if(parts.length)s3.appendChild(ws);
+  const copy=el('button','sp-copy','✦ Copy breakthrough brief');
+  copy.addEventListener('click',()=>{ copyText(breakthroughPrompt(area,disease,rows));
+    toast('Breakthrough brief for '+disease+' copied — paste into Claude for ideas'); });
+  s3.appendChild(copy);
+  s3.appendChild(el('div','sp-copy-sub','A rigorous, data-grounded prompt built from the frontier, failures and gaps above. Paste into Claude for step-change drug ideas.'));
+  body.appendChild(s3);
+  body.scrollTop=0; sp.scrollTop=0;
+}
+function spStat(v,l,cls){ return '<div class="sp-stat '+(cls||'')+'"><b>'+v+'</b><span>'+l+'</span></div>'; }
+function fmtB(m){ return m>=1000?('$'+(m/1000).toFixed(1).replace(/\.0$/,'')+'B'):('$'+Math.round(m)+'M'); }
+function shortDrug(n){
+  const t=stripTags(n.title);
+  const bits=[]; if(n.modality)bits.push(n.modality); if(n.stage&&n.stageRank>=2)bits.push(n.stage);
+  return (bits.length?bits.join(', '):t.split(/[:’']/).slice(1).join(':').trim().slice(0,40)||t.slice(0,40));
+}
+function openPanel(area,disease){
+  setPin(area,disease);                 // pin + align across weeks
+  state.panel={area,disease};
+  setHdrH();
+  renderPanel(area,disease);
+  if(!state.search) document.body.classList.add('has-panel');
+  document.getElementById('sidepanel').setAttribute('aria-hidden', state.search?'true':'false');
+  requestAnimationFrame(()=>{ layout(); if(state.pin) alignPinned(false); });
+}
+function closePanel(){ clearPin(); }   // panel ✕ also stops following
+function setHdrH(){ const h=document.querySelector('header.top'); if(h) document.documentElement.style.setProperty('--hdr-h',h.offsetHeight+'px'); }
 function toast(msg){
   let t=document.getElementById('toast');
   if(!t){ t=el('div','toast'); t.id='toast'; document.body.appendChild(t); }
@@ -895,13 +1091,14 @@ window.addEventListener('keydown',e=>{
   if(e.key==='ArrowLeft')navTo(state.focus-1);
   if(e.key==='ArrowRight')navTo(state.focus+1);
 });
-window.addEventListener('resize',()=>{if(!state.search){layout(); if(state.pin) alignPinned(false);}});
+window.addEventListener('resize',()=>{setHdrH(); if(!state.search){layout(); if(state.pin) alignPinned(false);}});
 
 /* ---------- init ---------- */
 function init(){
   if(!WEEKS.length){document.getElementById('track').innerHTML='<div class="empty">No data. Run parse_notes.py to generate the dashboard.</div>';return;}
   document.getElementById('rangeLabel').textContent=WEEKS[0].meta.label+'  —  '+WEEKS[WEEKS.length-1].meta.label;
   document.getElementById('genLabel').textContent=WEEKS.length+' weeks indexed';
+  setHdrH();
   renderCarousel();
 }
 init();
