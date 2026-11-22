@@ -237,6 +237,11 @@ mark{background:#FBE7A6;color:inherit;padding:0 1px;border-radius:2px}
   overscroll-behavior:contain}
 body.has-panel .sidepanel{transform:none}
 body.has-panel main{padding-right:var(--panel-w)}
+body.has-panel #controls{padding-right:calc(var(--panel-w) + 8px)}
+body.has-panel .footer{padding-right:var(--panel-w)}
+.ctrl-div{width:1px;align-self:stretch;background:var(--line);margin:2px 2px}
+.ctrl-btn.flt{color:var(--ink-soft);gap:0}
+.ctrl-btn.flt.on{border-color:#0f7d43;color:#0f7d43;background:#E6F1EA}
 @media (prefers-reduced-motion:reduce){.sidepanel{transition:none}}
 .sp-head{position:sticky;top:0;background:var(--panel);border-bottom:1.5px solid var(--ink);padding:14px 16px 11px;z-index:2}
 .sp-crumb{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--accent)}
@@ -254,12 +259,25 @@ body.has-panel main{padding-right:var(--panel-w)}
 .sp-sec-h{font-family:var(--serif);font-size:14.5px;color:var(--ink);margin:0 0 3px;display:flex;align-items:baseline;gap:7px}
 .sp-sec-sub{font-size:10.5px;color:var(--ink-faint);font-family:var(--sans)}
 .sp-sec-bar{height:1.5px;background:var(--ink);margin:5px 0 9px;opacity:.85}
-/* momentum-over-time strip */
-.sp-trend{display:flex;gap:4px;align-items:stretch}
-.sp-tw{flex:1;min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:7px;padding:6px 4px;text-align:center}
-.sp-tw-k{font-family:var(--mono);font-size:8.5px;color:var(--ink-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sp-tw-v{font-size:11px;font-weight:700;margin-top:3px;display:flex;gap:4px;justify-content:center}
-.sp-tw-v .u{color:#2C7A4B}.sp-tw-v .d{color:#b3261e}.sp-tw-v .z{color:var(--ink-faint)}
+/* momentum-over-time chart (adaptive bins: volume + sentiment) */
+.sp-mo-sum{font-size:11px;color:var(--ink-soft);margin-bottom:9px}
+.sp-mo-sum b{color:var(--ink);font-size:13px}
+.sp-mo-sum .u{color:#2C7A4B;font-weight:600}.sp-mo-sum .d{color:#b3261e;font-weight:600}
+.sp-mo{display:flex;gap:5px;align-items:flex-end;height:78px}
+.sp-mo-col{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%}
+.sp-mo-bar{width:74%;max-width:30px;min-height:2px;display:flex;flex-direction:column-reverse;border-radius:3px 3px 0 0;overflow:hidden;background:var(--line-soft)}
+.sp-mo-bar .u{background:#2C7A4B}.sp-mo-bar .z{background:#c9cdd4}.sp-mo-bar .d{background:#d1544a}
+.sp-mo-k{font-family:var(--mono);font-size:8px;color:var(--ink-faint);margin-top:4px;white-space:nowrap}
+.sp-mo-n{font-size:8.5px;color:var(--ink-faint);font-weight:700}
+.sp-mo-leg{font-size:9px;color:var(--ink-faint);margin-top:7px;font-family:var(--mono)}
+.sp-mo-leg .u{color:#2C7A4B}.sp-mo-leg .z{color:#c9cdd4}.sp-mo-leg .d{color:#d1544a}
+/* breakthrough direction cards */
+.sp-dir{border:1px solid var(--line);border-left-width:3px;border-radius:8px;padding:8px 11px;margin-bottom:8px;background:var(--panel)}
+.sp-dir.transfer{border-left-color:#5b3aa6}.sp-dir.failure{border-left-color:#b3261e}
+.sp-dir.crowd{border-left-color:#d98324}.sp-dir.leader{border-left-color:#2C7A4B}
+.sp-dir-t{font-weight:700;font-size:12px;color:var(--ink)}
+.sp-dir-b{font-size:11px;line-height:1.55;color:var(--ink-soft);margin-top:3px}
+.sp-dir-b b{color:var(--ink)}
 /* concept trajectory rows */
 .sp-con{border:1px solid var(--line);border-radius:9px;padding:8px 10px;margin-bottom:7px;background:var(--panel)}
 .sp-con-h{display:flex;align-items:center;gap:7px}
@@ -299,7 +317,7 @@ body.has-panel main{padding-right:var(--panel-w)}
 .sp-copy-sub{font-size:10.5px;color:var(--ink-faint);text-align:center;margin-top:6px;line-height:1.4}
 @media (max-width:1040px){
   :root{--panel-w:330px}
-  body.has-panel main{padding-right:0}
+  body.has-panel main,body.has-panel #controls,body.has-panel .footer{padding-right:0}
   .sidepanel{box-shadow:-8px 0 40px rgba(20,24,34,.18)}
 }
 </style>
@@ -330,6 +348,8 @@ body.has-panel main{padding-right:var(--panel-w)}
   <div class="spacer"></div>
   <div class="pin-note" id="pinNote" hidden>Following <b id="pinName"></b> across weeks<button id="pinClear" aria-label="Stop following">✕</button></div>
   <div class="tgls">
+    <button class="ctrl-btn flt" id="fltBig" title="Show only stories with ≥ $750M peak-sales market">&#9650; ≥$750M</button>
+    <span class="ctrl-div"></span>
     <button class="ctrl-btn tgl" id="tglAreas" data-level="area">Areas</button>
     <button class="ctrl-btn tgl" id="tglInd" data-level="grp">Indications</button>
     <button class="ctrl-btn tgl" id="tglDetails" data-level="story">Details</button>
@@ -404,7 +424,8 @@ function sortDiseaseGroups(area,nodes){
 const BIG_MKT=750; // $millions; a drug at/above this peak-sales figure is "interesting"
 const LEVEL_DEFAULT={area:true, grp:true, story:false}; // indications open, details closed
 const state={cat:'disease', focus:Math.min(1,WEEKS.length-1), search:'',
-  levelOpen:Object.assign({},LEVEL_DEFAULT), flip:new Set(), pin:null, panel:null};
+  levelOpen:Object.assign({},LEVEL_DEFAULT), flip:new Set(), pin:null, panel:null, bigOnly:false};
+function passesFilter(n){ return !state.bigOnly || (n.mkt!=null && n.mkt>=BIG_MKT); }
 function isOpen(level,key){ return state.levelOpen[level] !== state.flip.has(key); }
 function levelPrefix(level){ return (level==='area'?'a':level==='grp'?'g':'s')+'|'; }
 
@@ -488,8 +509,11 @@ function renderNodes(nodes,cat,wid,pathPrefix,areaName,curDisease){
       const body=el('div','grp-body');
       body.appendChild(renderNodes(node.children,cat,wid,path,areaName,node.label));
       g.appendChild(body);
+      // with the ≥$750M filter on, hide indications that have no qualifying story
+      if(state.bigOnly && !body.querySelector('.story')) return;
       frag.appendChild(g);
     }else{
+      if(!passesFilter(node)) return;
       const has=node.details&&node.details.length;
       const sk=keyStory(wid,cat,path+'#'+idx);
       const s=el('div','story'+(has?' hasdetail':'')+(isOpen('story',sk)?' open':''));
@@ -550,6 +574,7 @@ function renderColumn(week){
     const kids=state.cat==='disease'?sortDiseaseGroups(area.area,area.children):area.children;
     ab.appendChild(renderNodes(kids,state.cat,week.meta.id,area.area,area.area,null));
     wrap.appendChild(ab);
+    if(state.bigOnly && !ab.querySelector('.story')) return;   // hide empty areas when filtering
     bodyWrap.appendChild(wrap);
   });
   col.appendChild(bodyWrap);
@@ -735,7 +760,7 @@ function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>
 function renderSearch(q){
   const terms=q.toLowerCase().split(/\s+/).filter(Boolean);
   if(!INDEX)INDEX=flatten();
-  const hits=INDEX.filter(r=>terms.every(t=>r.text.includes(t)));
+  const hits=INDEX.filter(r=>terms.every(t=>r.text.includes(t)) && passesFilter(r));
   document.getElementById('stage').style.display='none';
   document.getElementById('controls').style.display='none';
   document.body.classList.remove('has-panel');   // panel hidden while searching (state kept)
@@ -820,6 +845,11 @@ const ALL_MODALITIES=['Monoclonal Ab','Bispecific Ab','ADC','T-cell engager','CA
   'TCR-T','Cell therapy','Gene therapy','Base editing','CRISPR/editing','siRNA/RNAi',
   'ASO/antisense','mRNA','Protein degrader','Radiopharma','Peptide','Small molecule',
   'Enzyme/ERT','Vaccine','BCI/device','Diagnostic'];
+// distinct platform modalities worth flagging as a cross-indication transfer
+// (excludes ubiquitous classes like antibodies / small molecules / diagnostics)
+const NOVEL_PLATFORMS=new Set(['CAR-T','TCR-T','Cell therapy','Gene therapy','Base editing',
+  'CRISPR/editing','siRNA/RNAi','ASO/antisense','mRNA','Protein degrader','Radiopharma',
+  'Peptide','Enzyme/ERT','Vaccine']);
 
 function collectIndication(area,disease){
   if(!INDEX)INDEX=flatten();
@@ -890,12 +920,40 @@ function conceptTrajectories(rows){
   return arr;
 }
 // per-week sentiment, oldest->newest (the trend over time)
-function weeklyTrend(rows){
-  const m=new Map();
-  WEEKS.forEach(w=>m.set(w.meta.label,{k:w.meta.short||w.meta.label,sort:w.meta.sort,up:0,dn:0,n:0}));
-  rows.forEach(r=>{ const o=m.get(r.week.meta.label); if(!o)return; o.n++;
-    if(r.node.neg)o.dn++; else if(assetWin(r.node))o.up++; });
-  return [...m.values()].filter(o=>o.n>0).sort((a,b)=>a.sort-b.sort);
+// Adaptive momentum over time: bin into <=10 equal time buckets by calendar
+// month so the shape doesn't depend on how many weeks have accumulated.
+const _MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function monthIdx(w){ return (w.meta.year||2000)*12 + ((w.meta.month||1)-1); }
+function momentumSeries(rows){
+  if(!rows.length) return {buckets:[],total:0,up:0,dn:0,unit:1};
+  const idxs=rows.map(r=>monthIdx(r.week));
+  const lo=Math.min(...idxs), hi=Math.max(...idxs);
+  const span=hi-lo+1;
+  const unit=Math.max(1, Math.ceil(span/10));      // months per bucket, <=10 buckets
+  const nb=Math.ceil(span/unit);
+  const buckets=[];
+  for(let i=0;i<nb;i++){ const start=lo+i*unit;
+    buckets.push({start,label:_MN[start%12]+(unit>3?" '"+String(Math.floor(start/12)).slice(-2):''),up:0,dn:0,neu:0,n:0}); }
+  let up=0,dn=0;
+  rows.forEach(r=>{ const b=buckets[Math.floor((monthIdx(r.week)-lo)/unit)];
+    b.n++; if(r.node.neg){b.dn++;dn++;} else if(assetWin(r.node)){b.up++;up++;} else b.neu++; });
+  return {buckets,total:rows.length,up,dn,unit};
+}
+
+// Global mechanism signal: which indications each modality / target is WINNING in
+// (used for cross-indication breakthrough directions). Computed once.
+let _MECH=null;
+function mechSignal(){
+  if(_MECH) return _MECH;
+  if(!INDEX) INDEX=flatten();
+  const mod={}, tgt={};
+  INDEX.filter(r=>r.cat==='disease').forEach(r=>{
+    const n=r.node, ind=r.crumbs[1]; if(!ind||ind==='Misc.') return;
+    const win=assetWin(n);
+    function add(map,key){ if(!key)return; const e=map[key]||(map[key]={wins:{},all:{}}); e.all[ind]=1; if(win)e.wins[ind]=(e.wins[ind]||0)+1; }
+    add(mod,n.modality); add(tgt,n.target);
+  });
+  _MECH={mod,tgt}; return _MECH;
 }
 function spRow(r,opts){
   const n=r.node, row=el('div','sp-row');
@@ -932,17 +990,31 @@ function renderPanel(area,disease){
   head.appendChild(stats); sp.appendChild(head);
   const body=el('div','sp-body'); sp.appendChild(body);
 
-  // momentum over time
-  const tr=weeklyTrend(rows);
-  if(tr.length){
-    const s=section('Momentum over time','advances vs setbacks, by week');
-    const strip=el('div','sp-trend');
-    tr.forEach(o=>{ const c=el('div','sp-tw');
-      c.innerHTML='<div class="sp-tw-k">'+escapeHtml(o.k)+'</div><div class="sp-tw-v">'+
-        (o.up?'<span class="u">'+o.up+'▲</span>':'')+(o.dn?'<span class="d">'+o.dn+'▼</span>':'')+
-        (!o.up&&!o.dn?'<span class="z">'+o.n+'</span>':'')+'</div>';
-      strip.appendChild(c); });
-    s.appendChild(strip); body.appendChild(s);
+  // momentum over time — adaptive bins (volume + sentiment), scales to any span
+  const M=momentumSeries(rows);
+  if(M.buckets.length){
+    const posPct=M.total?Math.round((M.up/M.total)*100):0;
+    const s=section('Momentum over time', M.unit>1?('headlines & sentiment · ~'+M.unit+'-mo bins'):'headlines & sentiment, by month');
+    const sum=el('div','sp-mo-sum');
+    sum.innerHTML='<b>'+M.total+'</b> headlines · <span class="u">'+M.up+' advancing</span> · <span class="d">'+M.dn+' setbacks</span> · '+posPct+'% positive';
+    s.appendChild(sum);
+    const maxN=Math.max(1,...M.buckets.map(b=>b.n));
+    const chart=el('div','sp-mo');
+    M.buckets.forEach(b=>{
+      const col=el('div','sp-mo-col');
+      const h=Math.round(b.n/maxN*100);
+      col.innerHTML='<div class="sp-mo-bar" style="height:'+(b.n?Math.max(h,6):0)+'%">'+
+        (b.dn?'<span class="d" style="flex:'+b.dn+'"></span>':'')+
+        (b.neu?'<span class="z" style="flex:'+b.neu+'"></span>':'')+
+        (b.up?'<span class="u" style="flex:'+b.up+'"></span>':'')+
+        '</div><div class="sp-mo-k">'+escapeHtml(b.label)+'</div>'+
+        '<div class="sp-mo-n">'+(b.n||'')+'</div>';
+      col.title=b.label+': '+b.n+' headlines ('+b.up+' advancing, '+b.dn+' setbacks)';
+      chart.appendChild(col);
+    });
+    s.appendChild(chart);
+    s.appendChild(el('div','sp-mo-leg','<span class="u">■</span> advancing &nbsp; <span class="z">■</span> neutral &nbsp; <span class="d">■</span> setback'));
+    body.appendChild(s);
   }
 
   // concepts rising vs failing — the core trend view
@@ -974,34 +1046,72 @@ function renderPanel(area,disease){
     front.forEach(r=>s.appendChild(spRow(r,{meta:true}))); body.appendChild(s);
   }
 
-  // timeline
-  const s2=section('Full timeline','every story in this indication, newest first');
-  rows.slice().sort((a,b)=>b.week.meta.sort-a.week.meta.sort).forEach(r=>s2.appendChild(spRow(r,{meta:false})));
-  body.appendChild(s2);
-
-  // breakthrough
-  const s3=section('Breakthrough ideas','turn this landscape into non-incremental concepts');
-  const ws=el('div','sp-ws');
-  const parts=[];
-  if(I&&I.crowded.length)parts.push('<b>Crowded:</b> '+escapeHtml(I.crowded.map(([t,c])=>t+'×'+c).join(', '))+' — differentiation is hard here.');
-  const struggling=cons.filter(c=>c.cls==='falling').map(c=>c.key);
-  if(struggling.length)parts.push('<b>Failing approaches:</b> '+escapeHtml(struggling.slice(0,4).join(', '))+' — unmet need persists.');
-  if(I&&I.whitespace.length)parts.push('<b>Untried here:</b> <span class="gap">'+escapeHtml(I.whitespace.slice(0,6).join(', '))+'</span>.');
-  ws.innerHTML=parts.join('<br>'); if(parts.length)s3.appendChild(ws);
-  const copy=el('button','sp-copy','✦ Copy breakthrough brief');
+  // breakthrough directions — themes, not "combine two winners"
+  const s3=section('Breakthrough directions','strategic angles for a step-change drug — themes, not me-toos');
+  const dirs=breakthroughDirections(area,disease,rows,cons,front[0],I);
+  dirs.forEach(d=>{
+    const box=el('div','sp-dir '+d.cls);
+    box.innerHTML='<div class="sp-dir-h"><span class="sp-dir-t">'+escapeHtml(d.title)+'</span></div>'+
+      '<div class="sp-dir-b">'+d.body+'</div>';
+    s3.appendChild(box);
+  });
+  const copy=el('button','sp-copy','✦ Copy breakthrough brief for Claude');
   copy.addEventListener('click',()=>{ copyText(breakthroughPrompt(area,disease,rows));
     toast('Breakthrough brief for '+disease+' copied — paste into Claude for ideas'); });
   s3.appendChild(copy);
-  s3.appendChild(el('div','sp-copy-sub','A rigorous, data-grounded prompt built from the frontier, failures and gaps above. Paste into Claude for step-change drug ideas.'));
+  s3.appendChild(el('div','sp-copy-sub','These angles plus the full frontier & failure data are packed into a rigorous prompt that forbids incremental me-toos and pushes for mechanism-level novelty. Paste into Claude to generate and pressure-test specific concepts.'));
   body.appendChild(s3);
   body.scrollTop=0; sp.scrollTop=0;
 }
+
+// Compute strategic breakthrough angles from cross-indication themes.
+function breakthroughDirections(area,disease,rows,cons,leader,I){
+  const dirs=[];
+  const sig=mechSignal();
+  const present=new Set(rows.map(r=>r.node.modality).filter(Boolean));
+  // 1) Transfer a distinct PLATFORM proven ELSEWHERE but untried here (cross-indication insight)
+  const transfers=ALL_MODALITIES.filter(m=>NOVEL_PLATFORMS.has(m)&&!present.has(m)).map(m=>{
+    const e=sig.mod[m]; if(!e)return null;
+    const wonIn=Object.keys(e.wins).filter(x=>x!==disease);
+    return wonIn.length?{m,wonIn,n:wonIn.length}:null;
+  }).filter(Boolean).sort((a,b)=>b.n-a.n).slice(0,2);
+  transfers.forEach(t=>{
+    dirs.push({cls:'transfer',title:'Transfer a proven platform · '+t.m,
+      body:'<b>'+escapeHtml(t.m)+'</b> is validating in '+t.n+' other indication'+(t.n>1?'s':'')+
+        ' (e.g. '+escapeHtml(t.wonIn.slice(0,3).join(', '))+') but is <b>untried in '+escapeHtml(disease)+
+        '</b>. A first-in-indication '+escapeHtml(t.m)+' asset could define a new class here rather than crowd an existing one.'});
+  });
+  // 2) Attack the shared failure mode
+  const falling=cons.filter(c=>c.cls==='falling'||c.cls==='contested');
+  if(falling.length){
+    dirs.push({cls:'failure',title:'Solve the failure mode',
+      body:'Approaches around <b>'+escapeHtml(falling.slice(0,3).map(c=>c.key).join(', '))+'</b> have stalled or split here — the unmet need in '+escapeHtml(disease)+
+        ' persists. A mechanism that <b>circumvents why these fail</b> (resistance, delivery, selectivity) beats adding another asset to a working target.'});
+  }
+  // 3) Out-innovate the crowded target
+  if(I&&I.crowded.length){
+    const c=I.crowded[0];
+    dirs.push({cls:'crowd',title:'Escape the crowded target',
+      body:'<b>'+escapeHtml(c[0])+'</b> is saturated ('+c[1]+' assets). A '+(c[0])+'-vs-'+(c[0])+
+        ' me-too is unlikely to differentiate — the step-change comes from a <b>novel target or a fundamentally better modality</b> on the same biology.'});
+  }
+  // 4) Raise the bar on the frontier leader
+  if(leader){
+    const n=leader.node, lb=[n.modality,n.target].filter(Boolean).join('/');
+    dirs.push({cls:'leader',title:'Beat the leader on its weakness',
+      body:'The frontier is <b>'+escapeHtml(n.company||stripTags(n.title).slice(0,24))+'</b>'+(lb?' ('+escapeHtml(lb)+')':'')+
+        '. Match-the-mechanism won’t win — target its ceiling: <b>durability/cure, acquired resistance, therapeutic index, or reaching patients it can’t</b>.'});
+  }
+  return dirs.slice(0,4);
+}
 function spStat(v,l,cls){ return '<div class="sp-stat '+(cls||'')+'"><b>'+v+'</b><span>'+l+'</span></div>'; }
 function fmtB(m){ return m>=1000?('$'+(m/1000).toFixed(1).replace(/\.0$/,'')+'B'):('$'+Math.round(m)+'M'); }
+function trunc(s,nchar){ s=s.trim(); if(s.length<=nchar)return s; return s.slice(0,nchar).replace(/\s+\S*$/,'')+'…'; }
 function shortDrug(n){
-  const t=stripTags(n.title);
   const bits=[]; if(n.modality)bits.push(n.modality); if(n.stage&&n.stageRank>=2)bits.push(n.stage);
-  return (bits.length?bits.join(', '):t.split(/[:’']/).slice(1).join(':').trim().slice(0,40)||t.slice(0,40));
+  if(bits.length)return bits.join(', ');
+  const t=stripTags(n.title);
+  return trunc(t.split(/[:’']/).slice(1).join(':').trim()||t, 40);
 }
 function openPanel(area,disease){
   setPin(area,disease);                 // pin + align across weeks
@@ -1050,13 +1160,23 @@ function breakthroughPrompt(area,disease,rows){
   p+='- Modalities in play: '+(Object.entries(modsPresent).map(([m,c])=>m+'×'+c).join(', ')||'n/a')+'\n';
   p+='- Modalities NOT yet applied to this indication (possible white space): '+untried.slice(0,14).join(', ')+'\n';
   if(mkts.length)p+='- Market-size signal: $'+Math.round(Math.min(...mkts))+'M–$'+Math.round(Math.max(...mkts))+'M peak across assets.\n';
-  p+='\nYOUR TASK — propose 3 genuinely breakthrough concepts (NOT me-too variations of the frontier). For each:\n';
-  p+='1. Core insight — the biological or engineering insight the field is missing.\n';
-  p+='2. Mechanism — target + modality + how it works, concretely.\n';
-  p+='3. Why step-change — the axis on which it could be 5–10× better than the frontier (efficacy depth, durability/cure, resistance, safety/therapeutic index, patient reach, convenience) and the quantitative bar to clear.\n';
-  p+='4. Why now — the enabling technology or biology that makes this feasible today but wasn\'t before.\n';
-  p+='5. Killer risk — the single thing most likely to sink it, and the fastest, cheapest experiment to de-risk it.\n\n';
-  p+='Rules: avoid incremental tweaks (next-gen same-target, swapped ADC payloads, me-too bispecifics) unless they unlock a true discontinuity. Prefer mechanisms absent from the lists above, or combinations that directly address a failure mode seen in the graveyard. Be specific and falsifiable, not hand-wavy. End with the ONE concept you would fund first and why.';
+  // cross-indication transfer signal — modalities winning elsewhere, untried here
+  const sig=mechSignal();
+  const transfer=untried.filter(m=>NOVEL_PLATFORMS.has(m)).map(m=>{ const e=sig.mod[m]; if(!e)return null;
+    const w=Object.keys(e.wins).filter(x=>x!==disease); return w.length?(m+' (validating in '+w.slice(0,3).join(', ')+')'):null; }).filter(Boolean).slice(0,5);
+  if(transfer.length)p+='- CROSS-INDICATION SIGNAL — modalities proven in OTHER diseases but untried here: '+transfer.join('; ')+'.\n';
+  p+='\nYOUR TASK — propose 3 breakthrough concepts that could be FAR superior to the frontier above. Be a discerning scientist, not a brainstorm generator.\n';
+  p+='Hard rules:\n';
+  p+='- Do NOT propose incremental me-toos: no next-gen same-target, swapped ADC payload, or another bispecific against targets already listed.\n';
+  p+='- Do NOT simply combine two targets/mechanisms that already work — that is the obvious move and rarely a breakthrough. If you invoke a combination, justify a specific synergy that solves a named failure mode, not additive effect.\n';
+  p+='- Anchor each idea in ONE of: (a) a mechanism/modality absent from this indication (see white space & cross-indication signal), (b) a root-cause fix for why the failed approaches failed, or (c) a biological insight about '+disease+' that the current field is ignoring.\n\n';
+  p+='For each concept give:\n';
+  p+='1. Core insight — the non-obvious biology or engineering insight others are missing, specific to '+disease+'.\n';
+  p+='2. Mechanism — target + modality + how it works, concretely enough to design the first experiment.\n';
+  p+='3. Why step-change (not incremental) — the single axis on which it could be 5–10× better than the named frontier leader (depth, durability/cure, resistance, therapeutic index, or reaching patients the frontier cannot), and the quantitative bar to beat.\n';
+  p+='4. Why now — the enabling technology or biological understanding that makes this feasible today but wasn\'t 3 years ago.\n';
+  p+='5. Killer risk — the one thing most likely to sink it, and the fastest, cheapest experiment to de-risk it.\n\n';
+  p+='Then stress-test your own ideas: for each, state honestly whether it is truly novel or a disguised incremental, and cut any that are incremental. End with the ONE concept you would fund first and the specific reason it wins.';
   return p;
 }
 
@@ -1084,6 +1204,11 @@ document.getElementById('navNext').addEventListener('click',()=>navTo(state.focu
 document.getElementById('tglAreas').addEventListener('click',()=>toggleLevel('area'));
 document.getElementById('tglInd').addEventListener('click',()=>toggleLevel('grp'));
 document.getElementById('tglDetails').addEventListener('click',()=>toggleLevel('story'));
+document.getElementById('fltBig').addEventListener('click',()=>{
+  state.bigOnly=!state.bigOnly;
+  document.getElementById('fltBig').classList.toggle('on',state.bigOnly);
+  if(state.search) renderSearch(state.search); else renderCarousel();
+});
 document.getElementById('pinClear').addEventListener('click',clearPin);
 window.addEventListener('keydown',e=>{
   if(document.activeElement===document.getElementById('search'))return;
