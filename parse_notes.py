@@ -160,6 +160,8 @@ _DP_RAW = {
     ('Bladder cancer', r'MIBC|NMIBC|(?i:bladder|urothelial)'),
     ('Renal cell carcinoma', r'ccRCC|RCC|(?i:renal cell)'),
     ('Colorectal cancer', r'CRC|(?i:colorectal)'),
+    ('Biliary tract cancer', r'BTC|(?i:biliary|cholangio|gallbladder)'),
+    ('Esophageal cancer', r'ESCC|(?i:esophageal|oesophageal)'),
     ('Gastric/GEJ cancer', r'GEJ|(?i:gastric|gastro.?esoph)'),
     ('Neuroendocrine tumors', r'GEP.?NET|NETs?\b|(?i:neuroendocrine)'),
     ('Pancreatic cancer', r'PDAC|(?i:pancrea)'),
@@ -434,26 +436,230 @@ def looks_like_group(label, has_children):
 # --------------------------------------------------------------------------
 # Market size -> (value in $millions, display label like "$4.4B"), or (None, None).
 # Used to show a green market-size badge at the end of big-market headlines.
-_UNIT_MUSD = {'M': 1, 'B': 1000, 'T': 1000000}
-def market_size(blob):
+# A drug is "interesting" at or above this peak-sales figure ($millions).
+INTERESTING_MUSD = 750
+_UNIT_MUSD = {'M': 1, 'B': 1000, 'T': 1000000, 'K': 0.001}
+def _fmt_musd(musd):
+    """Human label from a $millions value: 1800 -> '$1.8B', 450 -> '$450M'."""
+    if musd >= 1000:
+        b = musd / 1000.0
+        return '$' + (('%.1f' % b).rstrip('0').rstrip('.')) + 'B'
+    return '$' + (('%.0f' % musd)) + 'M'
+
+def _market_explicit(blob):
+    """The author's written '= $X' peak-sales / TAM figure, if present."""
     m = re.search(r'=\s*\$?\s?(\d[\d.,]*)\s?([MBT])\s*TAM', blob)
     if not m:
-        m = re.search(r'(?i:market size)[^=]*=\s*\u00d7?\s*\$?\s?(\d[\d.,]*)\s?([MBT])\b', blob)
+        m = re.search(r'(?i:market size|peak sales)[^=]*=\s*\u00d7?\s*\$?\s?(\d[\d.,]*)\s?([MBT])\b', blob)
     if not m:
-        return (None, None)
-    numraw = m.group(1).rstrip('.,')
-    unit = m.group(2).upper()
+        m = re.search(r'=\s*\$\s?(\d[\d.,]*)\s?([MBT])\s*(?:peak|sales|TAM|opportunity)', blob)
+    if not m:
+        return None
     try:
-        val = float(numraw.replace(',', ''))
+        val = float(m.group(1).rstrip('.,').replace(',', ''))
     except ValueError:
+        return None
+    return val * _UNIT_MUSD[m.group(2).upper()]
+
+def _market_computed(blob):
+    """Compute peak sales from the component chain on a 'Market size:' line when
+    the author didn't write an explicit '= $X'. Pattern:
+      'Market size: 100K pts * 15% * 8% * $2.4M net = ...'
+    => count * product(percentages) * net_price. Returns $millions or None."""
+    mm = re.search(r'(?i)market size\s*:?\s*(.+?)(?:\n|$)', blob)
+    if not mm:
+        return None
+    seg = mm.group(1)
+    seg = seg.split('=')[0]  # if an '=' total existed, _market_explicit handled it
+    # population count (first number with K/M/B magnitude)
+    cm = re.search(r'(\d[\d.,]*)\s*([KMB])\b', seg)
+    if not cm:
+        return None
+    try:
+        count = float(cm.group(1).replace(',', '')) * {'K':1e3,'M':1e6,'B':1e9}[cm.group(2)]
+    except ValueError:
+        return None
+    # net price per patient ($XK or $XM)
+    pm = re.search(r'\$\s?(\d[\d.,]*)\s*([KM])\b(?:[^%]*?net)?', seg)
+    if not pm:
+        return None
+    try:
+        price = float(pm.group(1).replace(',', '')) * {'K':1e3,'M':1e6}[pm.group(2)]
+    except ValueError:
+        return None
+    # multiply by every percentage in the chain
+    frac = 1.0
+    for p in re.findall(r'(\d[\d.]*)\s*%', seg):
+        try: frac *= float(p) / 100.0
+        except ValueError: pass
+    musd = count * frac * price / 1e6
+    if musd <= 0 or musd > 500000:   # sanity bound
+        return None
+    return musd
+
+def market_size(blob):
+    """(value in $millions, display label) or (None, None). Prefers the author's
+    explicit '= $X'; falls back to computing it from the component chain."""
+    musd = _market_explicit(blob)
+    computed = False
+    if musd is None:
+        musd = _market_computed(blob)
+        computed = True
+    if musd is None:
         return (None, None)
-    return (val * _UNIT_MUSD[unit], '$' + numraw + unit)
+    lab = _fmt_musd(musd)
+    if computed:
+        lab = '~' + lab      # tilde marks a Claude-computed (not author-written) figure
+    return (musd, lab)
+
+# -------- asset / mechanism / development-stage extraction --------
+# Modality (drug class). First match wins, so order specific -> generic.
+_MODALITY = [
+    ('Radiopharma',        r'\bRLT\b|radioligand|radiopharm|Lu-?177|\bAc-?225\b|actinium|\b177Lu\b'),
+    ('CAR-T',              r'CAR-?T\b|chimeric antigen receptor'),
+    ('TCR-T',              r'\bTCR-?T\b|TCR therapy|TCR-engineered'),
+    ('T-cell engager',     r'\bTCE\b|\bBiTE\b|T-?cell engager|CD3 bispecific|\bTCB\b'),
+    ('ADC',                r'\bADC\b|antibody-?drug conjugate'),
+    ('Base editing',       r'base edit|base-?edited'),
+    ('CRISPR/editing',     r'CRISPR|prime edit|gene-?edit'),
+    ('Gene therapy',       r'gene therapy|\bAAV\b|lentiviral|adeno-?associated'),
+    ('Cell therapy',       r'cell therapy|\bHSC\b|stem-?cell|allogeneic|autologous|\bNK cell'),
+    ('siRNA/RNAi',         r'siRNA|RNAi|\bsiRNA\b'),
+    ('ASO/antisense',      r'\bASO\b|antisense'),
+    ('mRNA',               r'\bmRNA\b|\bsaRNA\b|\btaRNA\b|self-amplifying'),
+    ('Protein degrader',   r'degrader|PROTAC|molecular glue|\bRIPTAC\b'),
+    ('Bispecific Ab',      r'bispecific|biparatopic|trispecific'),
+    ('Peptide',            r'\bpeptide\b|peptide-'),
+    ('Monoclonal Ab',      r'\bantibod(?:y|ies)\b|\bmAb\b|-mab\b|nanobody'),
+    ('Enzyme/ERT',         r'\bERT\b|enzyme replacement'),
+    ('Vaccine',            r'\bvaccine\b|immunization'),
+    ('BCI/device',         r'\bBCI\b|brain-?computer|neurostimulat|endovascular|\bimplant\b|wearable|\bsensor\b'),
+    ('Diagnostic',         r'\bdiagnostic\b|companion diagnostic|\bassay\b|liquid biopsy|screening (?:test|platform)|\bMCED\b'),
+    ('Small molecule',     r'small molecule|\binhibitor\b|\bagonist\b|\bantagonist\b|\bactivator\b|\bblocker\b|-ib\b|-stat\b|-rasib\b|kinase'),
+]
+_MODALITY = [(n, re.compile(p)) for n, p in _MODALITY]
+def extract_modality(blob):
+    for name, rx in _MODALITY:
+        if rx.search(blob):
+            return name
+    return None
+
+# Drug target / pathway (for the mechanism landscape and the breakthrough brief).
+# Curated high-frequency biotech targets; first match wins. Case-sensitive so
+# acronyms don't match lowercase words. Edit/extend as coverage grows.
+_TARGETS = [
+    r'PD-?L1', r'PD-?1', r'CTLA-?4', r'TIGIT', r'LAG-?3', r'CD3', r'CD19', r'CD20',
+    r'CD22', r'CD38', r'CD28', r'CD47', r'CD123', r'CD228', r'CD79[ab]?', r'BCMA',
+    r'GPRC5D', r'CLDN18\.2', r'CLDN6', r'DLL3', r'HER2', r'HER3', r'EGFR', r'cMET|c-MET|\bMET\b',
+    r'KRAS', r'NRAS', r'\bRAS\b', r'BRAF', r'PI3K', r'AKT', r'mTOR', r'CDK4/6|CDK2|CDK7',
+    r'PARP', r'BTK', r'TYK2', r'JAK1|JAK2|JAK', r'SYK', r'Nectin-?4', r'TROP2|TROP-?2',
+    r'FR[aα]|folate receptor', r'PSMA', r'SSTR2', r'FAP', r'B7-?H3', r'5T4',
+    r'TL1A', r'IL-?31', r'IL-?17[A-F]?', r'IL-?23', r'IL-?13', r'IL-?4R', r'IL-?5',
+    r'IL-?6', r'IL-?15', r'IL-?2', r'TSLP', r'TNF', r'OX40L?|OX40', r'BAFF', r'APRIL',
+    r'FcRn', r'C5\b|complement', r'IgE', r'CCR8', r'CCR5', r'CSF1R', r'KIT',
+    r'GLP-?1', r'GIP', r'glucagon', r'amylin', r'UCN2', r'MC4R', r'MC1R', r'leptin',
+    r'FGF21', r'APOC3', r'ANGPTL3', r'PCSK9', r'Lp\(a\)|LPA\b', r'CETP', r'FXIa|FXI\b',
+    r'factor XI', r'TTR', r'myosin', r'aldosterone', r'ENaC', r'sGC',
+    r'CGRP', r'Nav1\.[78]', r'KCNT1|Kv7', r'LRRK2', r'GBA1', r'alpha-?synuclein|a-?synuclein',
+    r'amyloid|Aβ', r'tau\b', r'TDP-?43', r'SOD1', r'HTT|huntingtin', r'MECP2',
+    r'D2\b|dopamine', r'5-?HT2A|serotonin', r'orexin', r'NMDA', r'GABA',
+    r'CFTR', r'DMD|dystrophin', r'SMN', r'DUX4', r'SERPINA1|AATD',
+    r'BCL11A', r'HBV', r'TMPRSS6|hepcidin', r'JAK2 V617F', r'FLT3', r'IDH1|IDH2',
+    r'menin', r'BCL-?2', r'NLRP3', r'STING', r'cGAS', r'URAT1', r'ENPP1', r'IGF-?1R',
+    r'TSHR', r'RXFP1|relaxin', r'ActRII|activin', r'GDF15', r'SIRP[aα]', r'WT1',
+    r'VEGF', r'VEGFR2?', r'ALK', r'ROS1', r'RET', r'FGFR', r'NTRK',
+]
+_TARGET_RX = [re.compile(r'\b(?:' + p + r')\b') for p in _TARGETS]
+_TARGET_NAME = [re.split(r'[\\|]', p)[0].replace('(','').replace(')','').replace('?','')
+                for p in _TARGETS]
+def extract_target(blob):
+    for i, rx in enumerate(_TARGET_RX):
+        if rx.search(blob):
+            return _TARGET_NAME[i]
+    return None
+
+# Development stage, ranked (higher = more advanced). Used for the "frontier".
+def extract_stage(blob):
+    b = blob
+    # a rejection at filing (Not Approvable / CRL) is NOT "approved"
+    if re.search(r'(?i:not[- ]approvable|complete response letter|\bCRL\b)', b):
+        return ('Filed', 5)
+    if re.search(r'\bnet sales\b|\bnet revenue\b|\bsales (?:of )?\$|launch(?:ed|es)?\b|commercial\b|\$\d[\d.]*[MB]\s*\d?[QH]\d', b) \
+       and re.search(r'\bFDA|approv|market', b):
+        return ('Marketed', 7)
+    if re.search(r'FDA approv|approved|approval|cleared|\bsBLA\b|accelerated approval|full approval|CHMP positive|positive opinion', b):
+        return ('Approved', 6)
+    if re.search(r'\bBLA\b|\bNDA\b|\bMAA\b|PDUFA|priority review|filing|filed|submitt|rolling (?:review|submission)|De Novo', b):
+        return ('Filed', 5)
+    if re.search(r'Ph\s?3|phase\s?3|Ph\s?2/3|pivotal', b):
+        return ('Phase 3', 4)
+    if re.search(r'Ph\s?2|phase\s?2|Ph\s?1/2', b):
+        return ('Phase 2', 3)
+    if re.search(r'Ph\s?1|phase\s?1|first-in-human|\bFIH\b|\bIND\b|healthy volunteer', b):
+        return ('Phase 1', 2)
+    if re.search(r'preclinical|\bIND-enabling\b|discovery|in vivo|in vitro|mouse|murine|primate', b):
+        return ('Preclinical', 1)
+    return ('Platform/other', 0)
+
+# Positive-data signal (for status). Negative handled by NEGATIVE_RX.
+_POSITIVE_RX = re.compile(
+    r'(?i:met (?:the )?(?:primary|co-primary|key)|hit (?:the )?primary|'
+    r'positive (?:ph|phase|topline|data|result|readout|opinion)|'
+    r'statistically significant|stat-?sig|superiority|superior to|'
+    r'FDA approv|approved|accelerated approval|breakthrough (?:therapy|designation)|'
+    r'durable response|improved (?:OS|PFS|survival|RFS)|'
+    r'\bORR\b.*\d\d%|response rate of \d)')
+
+# Drug-asset fingerprints: company drug-codes (AMG 513, SION-719, HG302) and
+# INN drug-name suffixes (-mab, -tinib, -sen, -gene, -cel, -rasib, ...).
+_DRUGCODE_RX = re.compile(r'\b[A-Z]{2,5}[- ]?\d{2,6}\b')
+_DRUGNAME_RX = re.compile(
+    r'(?i:\w(?:mab|tinib|ciclib|parib|rasib|degib|lisib|sertib|metinib|'
+    r'anib|afenib|sen|gene|cel|vir|limab|lizumab|ngogene|ersen|nersen|'
+    r'kacept|cept|stat|prazan|glutide|tide)\b)')
+# Clear business / policy / legal / epidemiology news that is NOT an R&D asset
+# story even if it name-drops a drug or modality.
+_HARDNEWS_RX = re.compile(
+    r'(?i:court|lawsuit|\bFOIA\b|executive order|CDC director|HHS Secretary|'
+    r'\bRFK\b|Senate confirm|exemption|outbreak|re-?establish|elimination status|'
+    r'screening guideline|guidelines? (?:now )?(?:urge|recommend)|'
+    r'guidance (?:from|cut)|cut (?:FY|fy)?\s?\d|revenue (?:guidance|\+|of \$| of €)|'
+    r'net sales|pro forma|benefit(?:s)? redesign|strategic plan|party-line|'
+    r'denies responsib|CNN interview|chooses .* (?:provider|AWS)|preferred .* provider|'
+    r'doubles down|no doubt|school year|supply disruption|patent (?:settle|dispute)|'
+    r'executive hub|employer-benefit|cost exposure|'
+    r'study (?:of|finds|shows|confirms|suggests)|researchers (?:map|found|show|identif)|'
+    r'\batlas\b|protein interactions|research (?:hub|institute)|single-cell|'
+    r'launches .* (?:hub|institute)|[1-4][QH]\d\d? (?:revenue|sales)|revenue \(\+|'
+    r'\bpivot\b|real-world (?:adoption|data|psilocybin))')
+# Positive R&D-asset vocabulary (mechanism / class / trial), independent of stage.
+_ASSET_VOCAB_RX = re.compile(
+    r'(?i:\bPh\s?[1-3]\b|phase\s?[1-3]|preclinical|\bIND\b|IND-enabling|'
+    r'first-in-human|inhibitor|agonist|antagonist|antibod|\bADC\b|CAR-?T\b|'
+    r'\bTCE\b|siRNA|\bASO\b|\bmRNA\b|gene therapy|cell therapy|degrader|'
+    r'\bpeptide\b|\bRLT\b|base edit|CRISPR|small molecule|bispecific|biparatopic|'
+    r'\bERT\b|enzyme replacement|oncolytic|superagonist|\bTKI\b)')
+def is_asset_story(blob, modality=None, stage_rank=0):
+    """True if the story is a drug / asset / platform worth watching as an R&D
+    opportunity (vs policy, legal, epidemiology, M&A or pure commercial news).
+    Precision-biased: a clear business/news signal vetoes it."""
+    if _HARDNEWS_RX.search(blob):
+        return False
+    # An R&D asset shows at least one of: a known modality, a clinical stage,
+    # explicit asset vocabulary, a drug-code, or an INN drug-name suffix.
+    if modality or stage_rank >= 1:
+        return True
+    if _ASSET_VOCAB_RX.search(blob):
+        return True
+    if _DRUGCODE_RX.search(blob) or _DRUGNAME_RX.search(blob):
+        return True
+    return False
 
 # Negative-news detection (colors the headline red). Edit to taste.
 NEGATIVE_RX = re.compile(
     r'(?i:'
     r'\bfail(?:s|ed|ure|ing)?\b(?!\s+(?:detection|mode|analysis))|discontinu(?:e|es|ed|ing)\b(?!\s*\d{4})|terminat(?:e|es|ed|ion)|'
-    r'\bCRL\b(?!\s+(?:collaborat|partner))|complete response letter|clinical hold|\bhalt(?:s|ed|ing)?\b|'
+    r'\bCRL\b(?!\s+(?:collaborat|partner))|complete response letter|not[- ]approvable|clinical hold|\bhalt(?:s|ed|ing)?\b|'
     r'misse[ds]?\s+(?:the\s+|its\s+|all\s+)?(?:primary|key|co-primary|secondary|endpoint)|'
     r'did\s?n[o\u2019\']?t\s+meet|does not meet|not meet(?:ing)?\s+(?:the\s+)?(?:primary|endpoint)|'
     r'negative\s+(?:opinion|topline|result|data|read)|'
@@ -465,7 +671,7 @@ NEGATIVE_RX = re.compile(
     r'treatment-related death|tx-related death|voluntary recall|product recall|recall of|'
     r'\bsuspend(?:s|ed)?\b|\bpaus(?:e|ed|ing)\b|scrap(?:s|ped)?|abandon(?:s|ed)?|'
     r'disappoint|underperform|cut\s+(?:fy\d+\s+)?(?:revenue\s+)?guidance|'
-    r'refus(?:e|al) to file|\bRTF\b'
+    r'refus(?:e|al) to file|\bRTF\b|deprioriti[sz]|shelv(?:e|ed|ing)|going concern'
     r')')
 def is_negative(blob):
     return bool(NEGATIVE_RX.search(blob))
@@ -553,20 +759,42 @@ def parse_week(path, meta):
         rec(node)
         return ' '.join(parts)
 
-    def make_story(node):
+    def _enrich(node, label):
+        """Shared story fields: market size, sentiment, dev stage, modality,
+        asset/concept classification, and the 'interesting' flag."""
         dtext = raw_detail_text(node)
         blob = node['full_text'] + ' ' + dtext
         mk, mklabel = market_size(blob)         # market size can live in a sub-bullet
+        neg = is_negative(node['full_text'])    # sentiment: headline only
+        stage, stage_rank = extract_stage(blob)
+        modality = extract_modality(blob)
+        asset = is_asset_story(blob, modality, stage_rank)
+        positive = bool(_POSITIVE_RX.search(blob)) and not neg
+        # market status: quantified / unquantified drug-or-concept / not-applicable
+        if mk is not None:
+            mstatus = 'quant'
+        elif asset:
+            mstatus = 'unquant'      # a real asset/platform that lacks a $ figure
+        else:
+            mstatus = 'na'
+        # INTERESTING = big market (>=$750M) OR a concept/platform worth watching
+        # that simply has no peak-sales number yet.
+        interesting = (mk is not None and mk >= INTERESTING_MUSD) or \
+                      (mk is None and asset)
         return {
-            'type': 'story',
-            'title': node['title_html'],
-            'label': node['label'],
-            'mkt': mk,
-            'mktLabel': mklabel,
-            'neg': is_negative(node['full_text']),  # sentiment: headline only
+            'mkt': mk, 'mktLabel': mklabel, 'mstatus': mstatus,
+            'neg': neg, 'pos': positive,
             'company': extract_company(node['full_text']),
+            'modality': modality, 'target': extract_target(blob),
+            'stage': stage, 'stageRank': stage_rank,
+            'asset': asset, 'interesting': interesting,
             'details': [to_detail(k) for k in node['kids']],
         }
+
+    def make_story(node):
+        f = _enrich(node, node['label'])
+        f.update({'type': 'story', 'title': node['title_html'], 'label': node['label']})
+        return f
 
     def regroup_disease(ta_name, roots):
         buckets, order = {}, []
@@ -597,19 +825,9 @@ def parse_week(path, meta):
                 'children': [classify(k) for k in kids],
             }
         # It's a story; all descendants become nested details
-        dtext = raw_detail_text(node)
-        blob = node['full_text'] + ' ' + dtext
-        mk, mklabel = market_size(blob)         # market size can live in a sub-bullet
-        return {
-            'type': 'story',
-            'title': node['title_html'],
-            'label': label,
-            'mkt': mk,
-            'mktLabel': mklabel,
-            'neg': is_negative(node['full_text']),  # sentiment: headline only
-            'company': extract_company(node['full_text']),
-            'details': [to_detail(k) for k in kids],
-        }
+        f = _enrich(node, label)
+        f.update({'type': 'story', 'title': node['title_html'], 'label': label})
+        return f
 
     def to_detail(node):
         return {'html': node['title_html'], 'children': [to_detail(k) for k in node['kids']]}

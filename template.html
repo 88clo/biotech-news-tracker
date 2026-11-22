@@ -141,11 +141,15 @@ header.top{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--p
 .story-title.neg{color:#b3261e}
 .co{background:#FFE816;color:#1b1b1b;font-weight:700;border-radius:3px;
   padding:0 3px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.co.concept{background:#E9DDFB;color:#5b3aa6;box-shadow:inset 0 -2px 0 #C9AEF2}
+.co.concept::after{content:"◇";font-size:9px;margin-left:3px;vertical-align:1px;opacity:.75}
 .story.hasdetail .story-title{cursor:pointer}
 .mktcap{display:inline-block;margin-left:7px;font-family:var(--mono);font-size:10.5px;font-weight:700;
   letter-spacing:.3px;color:#fff;background:#12924e;border:1px solid #0f7d43;
   border-radius:5px;padding:1px 7px;white-space:nowrap;vertical-align:1px;
   box-shadow:0 1px 1px rgba(16,90,50,.18)}
+.mktcap.small{color:#5b6270;background:#eceef1;border-color:#dfe2e8;box-shadow:none;font-weight:600}
+.mktcap.nosize{color:#8a5a12;background:#f8edd6;border-color:#ecd9b0;box-shadow:none;font-weight:600}
 .detail{display:none;margin:4px 0 10px 26px}
 .story.open .detail{display:block}
 .detail ul{margin:3px 0;padding-left:16px}
@@ -218,6 +222,77 @@ mark{background:#FBE7A6;color:inherit;padding:0 1px;border-radius:2px}
   .search input{width:150px}
   .nav{top:56px}
 }
+/* ---- group trends button + pin deep-dive ---- */
+.grp-trends{margin-left:6px;display:inline-flex;align-items:center;justify-content:center;
+  width:20px;height:20px;border-radius:5px;color:var(--ink-faint);cursor:pointer;flex:0 0 auto;opacity:0;transition:opacity .15s,background .15s,color .15s}
+.grp-head:hover .grp-trends,.grp.pinned .grp-trends{opacity:1}
+.grp-trends:hover{background:var(--accent-bg);color:var(--accent)}
+.grp-head .n{margin-left:6px}
+.pin-dive{border:1px solid var(--accent);background:var(--panel);color:var(--accent);font:inherit;
+  font-size:11px;font-weight:600;border-radius:14px;padding:2px 9px;margin-left:4px;cursor:pointer}
+.pin-dive:hover{background:var(--accent-bg)}
+
+/* ---- deep dive panel ---- */
+.deepdive{max-width:1180px;margin:0 auto;padding:4px 20px 60px}
+.dd-head{position:sticky;top:0;z-index:5;background:linear-gradient(var(--paper) 70%,rgba(246,245,241,0));padding:10px 0 12px}
+.dd-back{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:6px 12px;
+  font:inherit;font-size:12.5px;color:var(--ink-soft);cursor:pointer}
+.dd-back:hover{border-color:var(--accent);color:var(--ink)}
+.dd-hero{margin-top:12px}
+.dd-crumb{font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.6px}
+.dd-hero h2{font-family:var(--serif);font-size:30px;line-height:1.1;margin:3px 0 0;color:var(--ink)}
+.dd-stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.dd-stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 14px;min-width:78px}
+.dd-stat-v{font-size:20px;font-weight:700;color:var(--ink);line-height:1}
+.dd-stat-l{font-size:10.5px;color:var(--ink-faint);margin-top:3px;text-transform:uppercase;letter-spacing:.4px}
+.dd-stat.pos .dd-stat-v{color:#2C7A4B}
+.dd-stat.neg .dd-stat-v{color:#b3261e}
+.dd-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}
+.dd-sec{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)}
+.dd-sec:nth-child(4),.dd-sec:nth-child(5){grid-column:1 / -1}   /* timeline + brief full width */
+.dd-sec-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;border-bottom:1.5px solid var(--ink);padding-bottom:7px;margin-bottom:10px}
+.dd-sec-head h3{font-family:var(--serif);font-size:17px;margin:0;color:var(--ink)}
+.dd-sec-sub{font-size:11.5px;color:var(--ink-faint)}
+.dd-row{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--line-soft)}
+.dd-row:last-child{border-bottom:0}
+.dd-wk{flex:0 0 auto;font-size:10px;color:var(--ink-soft);background:var(--paper);border:1px solid var(--line);
+  padding:2px 6px;border-radius:5px;height:fit-content;margin-top:1px}
+.dd-main{flex:1;min-width:0}
+.dd-title{font-size:13px;line-height:1.4;color:var(--ink)}
+.dd-title.neg{color:#b3261e}
+.dd-meta{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
+.dd-chip{font-family:var(--mono);font-size:9.5px;font-weight:600;padding:1px 6px;border-radius:4px;
+  background:#eceef1;color:#5b6270;border:1px solid #e0e2e8;white-space:nowrap}
+.dd-chip.stage{background:#eef2ff;color:#3d4a8a;border-color:#dde3fb}
+.dd-chip.stage.s6,.dd-chip.stage.s7{background:#E6F1EA;color:#2C7A4B;border-color:#cfe6d8}
+.dd-chip.mod{background:#f3ecfb;color:#5b3aa6;border-color:#e6d9f6}
+.dd-chip.tgt{background:#fff4e6;color:#9a5a12;border-color:#f0ddbf}
+.dd-chip.mkt{background:#12924e;color:#fff;border-color:#0f7d43}
+.dd-chip.nos{background:#f8edd6;color:#8a5a12;border-color:#ecd9b0}
+.dd-chip.ws{background:var(--panel);color:var(--ink-soft);border-style:dashed}
+.dd-empty{font-size:12px;color:var(--ink-faint);padding:6px 0}
+.dd-land{margin-bottom:12px}
+.dd-land-t{font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
+.dd-bar{display:flex;align-items:center;gap:8px;margin:3px 0;font-size:11.5px}
+.dd-bar-k{flex:0 0 118px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dd-bar-track{flex:1;height:7px;background:var(--line-soft);border-radius:4px;overflow:hidden}
+.dd-bar-fill{display:block;height:100%;background:var(--accent);border-radius:4px}
+.dd-bar.hot .dd-bar-fill{background:#d98324}
+.dd-bar.hot .dd-bar-k{font-weight:700}
+.dd-bar-c{flex:0 0 auto;color:var(--ink-faint);font-size:10.5px}
+.dd-ws{font-size:11.5px;color:var(--ink-soft);margin-top:8px;line-height:1.9}
+.dd-ws-l{font-weight:700;color:var(--ink-soft)}
+.dd-brief-intro{font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin-bottom:10px}
+.dd-brief-bar{display:flex;gap:8px;margin-bottom:10px}
+.dd-copy{border:0;background:var(--accent);color:#fff;font:inherit;font-size:12.5px;font-weight:600;
+  border-radius:8px;padding:8px 14px;cursor:pointer}
+.dd-copy:hover{filter:brightness(1.05)}
+.dd-open{border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);font-size:12.5px;
+  border-radius:8px;padding:8px 14px;text-decoration:none;display:inline-flex;align-items:center}
+.dd-open:hover{border-color:var(--accent);color:var(--ink)}
+.dd-brief{white-space:pre-wrap;font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--ink-soft);
+  background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:12px 14px;max-height:340px;overflow:auto;margin:0}
+@media (max-width:760px){.dd-grid{grid-template-columns:1fr}.dd-sec:nth-child(4),.dd-sec:nth-child(5){grid-column:auto}}
 </style>
 </head>
 <body>
@@ -244,7 +319,7 @@ mark{background:#FBE7A6;color:inherit;padding:0 1px;border-radius:2px}
 <div class="controls" id="controls">
   <div class="timeline" id="timeline"></div>
   <div class="spacer"></div>
-  <div class="pin-note" id="pinNote" hidden>Following <b id="pinName"></b> across weeks<button id="pinClear" aria-label="Stop following">✕</button></div>
+  <div class="pin-note" id="pinNote" hidden>Following <b id="pinName"></b> across weeks<button id="pinDive" class="pin-dive" title="Open deep dive">Deep dive →</button><button id="pinClear" aria-label="Stop following">✕</button></div>
   <div class="tgls">
     <button class="ctrl-btn tgl" id="tglAreas" data-level="area">Areas</button>
     <button class="ctrl-btn tgl" id="tglInd" data-level="grp">Indications</button>
@@ -259,6 +334,7 @@ mark{background:#FBE7A6;color:inherit;padding:0 1px;border-radius:2px}
     <div class="track" id="track"></div>
   </section>
   <section class="results" id="results" style="display:none"></section>
+  <section class="deepdive" id="deepdive" style="display:none"></section>
 </main>
 
 <footer class="footer">
@@ -316,10 +392,10 @@ function sortDiseaseGroups(area,nodes){
   });
 }
 
-const BIG_MKT=1000; // $millions; stories with market size >= $1B get highlighted
+const BIG_MKT=750; // $millions; a drug at/above this peak-sales figure is "interesting"
 const LEVEL_DEFAULT={area:true, grp:true, story:false}; // indications open, details closed
 const state={cat:'disease', focus:Math.min(1,WEEKS.length-1), search:'',
-  levelOpen:Object.assign({},LEVEL_DEFAULT), flip:new Set(), pin:null};
+  levelOpen:Object.assign({},LEVEL_DEFAULT), flip:new Set(), pin:null, deepdive:null};
 function isOpen(level,key){ return state.levelOpen[level] !== state.flip.has(key); }
 function levelPrefix(level){ return (level==='area'?'a':level==='grp'?'g':'s')+'|'; }
 
@@ -332,15 +408,33 @@ function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className
 // Wrap the leading company name in a highlight span, if the (already HTML-escaped)
 // title begins with it. `company` is null when the story shouldn't be highlighted.
 function escCo(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function withCompany(titleHtml, company){
-  if(!company) return titleHtml;
+// highlight class for a story's company name: yellow for a big-market opportunity,
+// violet for a concept/platform worth watching, none otherwise or when negative.
+function coClass(node){
+  if(node.neg) return null;                       // red headline is the signal
+  if(!node.interesting || !node.company) return null;
+  return node.mkt!=null ? 'co' : 'co concept';
+}
+function withCompany(titleHtml, company, cls){
+  if(!company || !cls) return titleHtml;
   const esc=escCo(company);
   if(esc && titleHtml.slice(0,esc.length)===esc)
-    return '<span class="co">'+esc+'</span>'+titleHtml.slice(esc.length);
+    return '<span class="'+cls+'">'+esc+'</span>'+titleHtml.slice(esc.length);
   return titleHtml;
+}
+// market-size chip: green >=$750M, grey below, amber "no size" for an unquantified
+// drug/concept. Appends to the given title element.
+function appendMkt(el_, node){
+  if(node.mkt!=null && node.mktLabel){
+    const c=el('span','mktcap'+(node.mkt>=BIG_MKT?' big':' small'), node.mktLabel);
+    el_.appendChild(c);
+  } else if(node.mstatus==='unquant'){
+    const c=el('span','mktcap nosize','◇ no size'); el_.appendChild(c);
+  }
 }
 const CHEV='<svg class="chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>';
 const TWCHEV='<svg class="tw" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>';
+const TRENDICON='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 4 7-8"/><path d="M15 8h4v4"/></svg>';
 
 /* ---------- carousel geometry ---------- */
 function layout(){
@@ -376,10 +470,14 @@ function renderNodes(nodes,cat,wid,pathPrefix,areaName,curDisease){
       g.dataset.area=areaName; g.dataset.label=node.label;
       if(state.pin && state.pin.area===areaName && state.pin.disease===node.label) g.classList.add('pinned');
       const head=el('button','grp-head');
-      head.innerHTML=CHEV+'<span class="glabel"></span><span class="n mono"></span>';
+      head.innerHTML=CHEV+'<span class="glabel"></span>'+
+        (cat==='disease'?'<span class="grp-trends" role="button" title="Deep dive: trends, frontier & breakthrough ideas">'+TRENDICON+'</span>':'')+
+        '<span class="n mono"></span>';
       head.querySelector('.glabel').textContent=node.label;
       head.querySelector('.n').textContent=countStories(node.children);
       head.addEventListener('click',()=>{ flipLevel('grp',gk,g); setPin(areaName,node.label); });
+      const trend=head.querySelector('.grp-trends');
+      if(trend) trend.addEventListener('click',e=>{ e.stopPropagation(); openDeepDive(areaName,node.label); });
       g.appendChild(head);
       const body=el('div','grp-body');
       body.appendChild(renderNodes(node.children,cat,wid,path,areaName,node.label));
@@ -388,14 +486,13 @@ function renderNodes(nodes,cat,wid,pathPrefix,areaName,curDisease){
     }else{
       const has=node.details&&node.details.length;
       const sk=keyStory(wid,cat,path+'#'+idx);
-      const big=node.mkt!=null && node.mkt>=BIG_MKT;
       const s=el('div','story'+(has?' hasdetail':'')+(isOpen('story',sk)?' open':''));
       const head=el('button','story-head');
       head.appendChild(el('span',null, has?TWCHEV:'<span class="tw" style="opacity:0"></span>'));
       const body=el('div');
       const t=el('div','story-title'+(node.neg?' neg':''));
-      t.innerHTML=withCompany(node.title, big && !node.neg ? node.company : null);
-      if(big && node.mktLabel){ t.appendChild(el('span','mktcap',node.mktLabel)); }
+      t.innerHTML=withCompany(node.title, node.company, coClass(node));
+      appendMkt(t, node);
       body.appendChild(t);
       head.appendChild(body);
       head.addEventListener('click',()=>{ if(has)flipLevel('story',sk,s); if(curDisease)setPin(areaName,curDisease); });
@@ -455,6 +552,7 @@ function renderColumn(week){
 function renderCarousel(){
   setAccent(state.cat);
   document.getElementById('results').style.display='none';
+  document.getElementById('deepdive').style.display='none';
   document.getElementById('stage').style.display='';
   document.getElementById('controls').style.display='flex';
   const track=document.getElementById('track');
@@ -582,8 +680,9 @@ function flatten(){ // one-time flat index of every story across all weeks/cats
             if(node.type==='group')walk(node.children,crumbs.concat(node.label));
             else{
               const detailText=collectText(node.details);
-              rows.push({week:w,cat,crumbs:crumbs.slice(),title:node.title,
+              rows.push({week:w,cat,crumbs:crumbs.slice(),title:node.title,node:node,
                 mkt:node.mkt,mktLabel:node.mktLabel,neg:node.neg,company:node.company,
+                interesting:node.interesting,mstatus:node.mstatus,
                 details:node.details, text:(stripTags(node.title)+' '+crumbs.join(' ')+' '+detailText).toLowerCase()});
             }
           });
@@ -624,6 +723,7 @@ function renderSearch(q){
   const hits=INDEX.filter(r=>terms.every(t=>r.text.includes(t)));
   document.getElementById('stage').style.display='none';
   document.getElementById('controls').style.display='none';
+  document.getElementById('deepdive').style.display='none';
   const R=document.getElementById('results'); R.style.display=''; R.innerHTML='';
   // group hits by calendar month
   const months=new Map();
@@ -665,9 +765,8 @@ function renderTLItem(it,terms){
   const wk=el('span','tl-week mono'); wk.textContent=it.week.meta.short||it.week.meta.label;
   const main=el('div','tl-main');
   const ttl=el('div','tl-title'+(it.neg?' neg':''));
-  const big=it.mkt!=null && it.mkt>=BIG_MKT;
-  ttl.innerHTML=withCompany(highlight(it.title,terms), big && !it.neg ? it.company : null);
-  if(big && it.mktLabel){ ttl.appendChild(el('span','mktcap',it.mktLabel)); }
+  ttl.innerHTML=withCompany(highlight(it.title,terms), it.company, coClass(it));
+  appendMkt(ttl, it);
   main.appendChild(ttl);
   const crumbTxt=it.cat==='disease'?it.crumbs.slice(0,2).join(' › '):it.crumbs[0];
   main.appendChild(el('div','tl-crumb',escapeHtml(crumbTxt)));
@@ -701,9 +800,188 @@ function addChips(R){
 }
 
 /* ---------- events ---------- */
+/* ===================== DEEP DIVE: per-indication trends ===================== */
+const ALL_MODALITIES=['Monoclonal Ab','Bispecific Ab','ADC','T-cell engager','CAR-T',
+  'TCR-T','Cell therapy','Gene therapy','Base editing','CRISPR/editing','siRNA/RNAi',
+  'ASO/antisense','mRNA','Protein degrader','Radiopharma','Peptide','Small molecule',
+  'Enzyme/ERT','Vaccine','BCI/device','Diagnostic'];
+
+function collectIndication(area,disease){
+  if(!INDEX)INDEX=flatten();
+  return INDEX.filter(r=>r.cat==='disease'&&r.crumbs[0]===area&&r.crumbs[1]===disease);
+}
+function frontierScore(r){
+  const n=r.node; let s=(n.stageRank||0)*10;
+  if(n.pos)s+=6; if(n.mkt)s+=Math.min(n.mkt/1000,12); if(n.interesting)s+=2;
+  return s;
+}
+function chip(txt,cls){ return txt?('<span class="dd-chip '+(cls||'')+'">'+escapeHtml(txt)+'</span>'):''; }
+
+function ddStoryRow(r){
+  const n=r.node;
+  const row=el('div','dd-row'+(n.neg?' neg':''));
+  const wk=el('span','dd-wk mono'); wk.textContent=r.week.meta.short||r.week.meta.label;
+  const main=el('div','dd-main');
+  const ttl=el('div','dd-title'+(n.neg?' neg':''));
+  ttl.innerHTML=withCompany(n.title, n.company, coClass(n));
+  main.appendChild(ttl);
+  const meta=el('div','dd-meta');
+  meta.innerHTML=chip(n.stage,'stage s'+(n.stageRank||0))+chip(n.modality,'mod')+
+    chip(n.target,'tgt')+(n.mkt!=null?chip(n.mktLabel,'mkt'):(n.mstatus==='unquant'?chip('no size','nos'):''));
+  main.appendChild(meta);
+  row.appendChild(wk); row.appendChild(main);
+  return row;
+}
+function ddSection(title,sub){
+  const s=el('section','dd-sec');
+  const h=el('div','dd-sec-head');
+  h.innerHTML='<h3>'+escapeHtml(title)+'</h3>'+(sub?'<span class="dd-sec-sub">'+escapeHtml(sub)+'</span>':'');
+  s.appendChild(h); return s;
+}
+
+function breakthroughPrompt(area,disease,rows){
+  const front=rows.filter(r=>!r.node.neg).sort((a,b)=>frontierScore(b)-frontierScore(a)).slice(0,8);
+  const grave=rows.filter(r=>r.node.neg);
+  const strip=t=>stripTags(t).replace(/\s+/g,' ').trim();
+  const modsPresent={}, tgtsPresent={};
+  rows.forEach(r=>{ if(r.node.modality)modsPresent[r.node.modality]=(modsPresent[r.node.modality]||0)+1;
+                    if(r.node.target)tgtsPresent[r.node.target]=(tgtsPresent[r.node.target]||0)+1; });
+  const mkts=rows.map(r=>r.node.mkt).filter(x=>x!=null);
+  const untried=ALL_MODALITIES.filter(m=>!modsPresent[m]);
+  const crowded=Object.entries(tgtsPresent).filter(([,c])=>c>=3).map(([t])=>t);
+  let p='';
+  p+='You are a biotech R&D strategist with deep medicinal-chemistry and translational-biology expertise. ';
+  p+='Help me invent TRULY NOVEL, non-incremental drug concepts for '+disease+' ('+area+') that could be dramatically superior to everything currently in development.\n\n';
+  p+='CURRENT FRONTIER — the best-in-disease assets any new drug must beat:\n';
+  front.forEach(r=>{ const n=r.node;
+    p+='- '+strip(n.title).slice(0,220);
+    const tags=[n.modality,n.target&&('target '+n.target),n.stage,n.mkt!=null?('~'+n.mktLabel+' peak'):null].filter(Boolean);
+    if(tags.length)p+='  ['+tags.join(', ')+']';
+    p+='\n';
+  });
+  p+='\nWHAT HAS FAILED OR STALLED here (learn from these — do not repeat them):\n';
+  if(grave.length) grave.forEach(r=>{ p+='- '+strip(r.node.title).slice(0,200)+'\n'; });
+  else p+='- (no failures captured yet in this window)\n';
+  p+='\nMECHANISM LANDSCAPE:\n';
+  p+='- Targets in play: '+(Object.entries(tgtsPresent).map(([t,c])=>t+'×'+c).join(', ')||'n/a')+'\n';
+  if(crowded.length)p+='- CROWDED targets (≥3 assets): '+crowded.join(', ')+' — a me-too here is unlikely to differentiate.\n';
+  p+='- Modalities in play: '+(Object.entries(modsPresent).map(([m,c])=>m+'×'+c).join(', ')||'n/a')+'\n';
+  p+='- Modalities NOT yet applied to this indication (possible white space): '+untried.slice(0,14).join(', ')+'\n';
+  if(mkts.length)p+='- Market-size signal: $'+Math.round(Math.min(...mkts))+'M–$'+Math.round(Math.max(...mkts))+'M peak across assets.\n';
+  p+='\nYOUR TASK — propose 3 genuinely breakthrough concepts (NOT me-too variations of the frontier). For each:\n';
+  p+='1. Core insight — the biological or engineering insight the field is missing.\n';
+  p+='2. Mechanism — target + modality + how it works, concretely.\n';
+  p+='3. Why step-change — the axis on which it could be 5–10× better than the frontier (efficacy depth, durability/cure, resistance, safety/therapeutic index, patient reach, convenience) and the quantitative bar to clear.\n';
+  p+='4. Why now — the enabling technology or biology that makes this feasible today but wasn\'t before.\n';
+  p+='5. Killer risk — the single thing most likely to sink it, and the fastest, cheapest experiment to de-risk it.\n\n';
+  p+='Rules: avoid incremental tweaks (next-gen same-target, swapped ADC payloads, me-too bispecifics) unless they unlock a true discontinuity. Prefer mechanisms absent from the lists above, or combinations that directly address a failure mode seen in the graveyard. Be specific and falsifiable, not hand-wavy. End with the ONE concept you would fund first and why.';
+  return p;
+}
+
+function openDeepDive(area,disease){ state.deepdive={area,disease}; renderDeepDive(area,disease); window.scrollTo({top:0}); }
+function closeDeepDive(){ state.deepdive=null; renderCarousel(); }
+
+function renderDeepDive(area,disease){
+  document.getElementById('stage').style.display='none';
+  document.getElementById('controls').style.display='none';
+  document.getElementById('results').style.display='none';
+  const D=document.getElementById('deepdive'); D.style.display=''; D.innerHTML='';
+  const rows=collectIndication(area,disease);
+  const weeks=new Set(rows.map(r=>r.week.meta.label));
+  const neg=rows.filter(r=>r.node.neg), pos=rows.filter(r=>r.node.pos && !r.node.neg);
+  const mkts=rows.map(r=>r.node.mkt).filter(x=>x!=null);
+
+  // header
+  const head=el('div','dd-head');
+  const back=el('button','dd-back','&larr; Back');
+  back.addEventListener('click',closeDeepDive);
+  head.appendChild(back);
+  const hero=el('div','dd-hero');
+  hero.innerHTML='<div class="dd-crumb mono">'+escapeHtml(area)+' · indication deep dive</div>'+
+    '<h2>'+escapeHtml(disease)+'</h2>';
+  const stats=el('div','dd-stats');
+  const rng=mkts.length?('$'+Math.round(Math.min(...mkts))+'M–'+_fmtB(Math.max(...mkts))):'—';
+  stats.innerHTML=
+    statTile(rows.length,'stories')+statTile(weeks.size,'weeks')+
+    statTile(pos.length,'advancing','pos')+statTile(neg.length,'setbacks','neg')+
+    statTile(rng,'market range');
+  hero.appendChild(stats); head.appendChild(hero);
+  D.appendChild(head);
+
+  const grid=el('div','dd-grid'); D.appendChild(grid);
+
+  // FRONTIER
+  const fsec=ddSection('Frontier · best-in-disease','What any new drug must beat — leaders by stage, data and market');
+  const front=rows.filter(r=>!r.node.neg).sort((a,b)=>frontierScore(b)-frontierScore(a)).slice(0,8);
+  if(front.length) front.forEach(r=>fsec.appendChild(ddStoryRow(r)));
+  else fsec.appendChild(el('div','dd-empty','No non-negative assets captured yet.'));
+  grid.appendChild(fsec);
+
+  // SETBACKS / graveyard
+  const gsec=ddSection('Setbacks · what has failed','Dead ends and stalls — where the unmet need persists');
+  if(neg.length) neg.forEach(r=>gsec.appendChild(ddStoryRow(r)));
+  else gsec.appendChild(el('div','dd-empty','No failures captured in this window.'));
+  grid.appendChild(gsec);
+
+  // MECHANISM LANDSCAPE
+  const msec=ddSection('Mechanism landscape','Targets & modalities in play — crowding vs white space');
+  msec.appendChild(landscapeBlock('Targets',tally(rows,'target')));
+  msec.appendChild(landscapeBlock('Modalities',tally(rows,'modality')));
+  const untried=ALL_MODALITIES.filter(m=>!tally(rows,'modality').some(([k])=>k===m));
+  const ws=el('div','dd-ws');
+  ws.innerHTML='<span class="dd-ws-l">Untried modalities here:</span> '+untried.slice(0,16).map(m=>'<span class="dd-chip ws">'+escapeHtml(m)+'</span>').join(' ');
+  msec.appendChild(ws);
+  grid.appendChild(msec);
+
+  // TIMELINE
+  const tsec=ddSection('Timeline','Every story in this indication, newest first');
+  rows.slice().sort((a,b)=>b.week.meta.sort-a.week.meta.sort).forEach(r=>tsec.appendChild(ddStoryRow(r)));
+  grid.appendChild(tsec);
+
+  // BREAKTHROUGH BRIEF
+  const bsec=ddSection('Breakthrough brief','Turn this landscape into non-incremental drug ideas');
+  const intro=el('div','dd-brief-intro');
+  intro.innerHTML='This assembles the frontier, the graveyard and the mechanism gaps above into a rigorous prompt that pushes for <b>step-change</b> concepts — not me-toos. Copy it into Claude (or any strong model) to brainstorm, or read it as a thinking checklist.';
+  bsec.appendChild(intro);
+  const prompt=breakthroughPrompt(area,disease,rows);
+  const bar=el('div','dd-brief-bar');
+  const copyBtn=el('button','dd-copy','Copy breakthrough brief');
+  const openBtn=el('a','dd-open','Open Claude ↗'); openBtn.href='https://claude.ai/new'; openBtn.target='_blank'; openBtn.rel='noopener';
+  copyBtn.addEventListener('click',()=>{ copyText(prompt); copyBtn.textContent='Copied ✓'; setTimeout(()=>copyBtn.textContent='Copy breakthrough brief',1600); });
+  bar.appendChild(copyBtn); bar.appendChild(openBtn); bsec.appendChild(bar);
+  const pre=el('pre','dd-brief'); pre.textContent=prompt; bsec.appendChild(pre);
+  grid.appendChild(bsec);
+}
+function _fmtB(m){ return m>=1000?('$'+(m/1000).toFixed(1).replace(/\.0$/,'')+'B'):('$'+Math.round(m)+'M'); }
+function statTile(v,l,cls){ return '<div class="dd-stat '+(cls||'')+'"><div class="dd-stat-v">'+v+'</div><div class="dd-stat-l">'+l+'</div></div>'; }
+function tally(rows,field){
+  const m={}; rows.forEach(r=>{ const v=r.node[field]; if(v)m[v]=(m[v]||0)+1; });
+  return Object.entries(m).sort((a,b)=>b[1]-a[1]);
+}
+function landscapeBlock(title,pairs){
+  const b=el('div','dd-land');
+  b.appendChild(el('div','dd-land-t',title));
+  if(!pairs.length){ b.appendChild(el('div','dd-empty','—')); return b; }
+  const max=pairs[0][1];
+  pairs.forEach(([k,c])=>{
+    const row=el('div','dd-bar'+(c>=3?' hot':''));
+    row.innerHTML='<span class="dd-bar-k">'+escapeHtml(k)+'</span>'+
+      '<span class="dd-bar-track"><span class="dd-bar-fill" style="width:'+Math.round(c/max*100)+'%"></span></span>'+
+      '<span class="dd-bar-c mono">'+c+'</span>';
+    b.appendChild(row);
+  });
+  return b;
+}
+function copyText(t){
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t).catch(()=>fallbackCopy(t)); }
+  else fallbackCopy(t);
+}
+function fallbackCopy(t){ const ta=document.createElement('textarea'); ta.value=t; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); }
+
 function doSearch(q){
   state.search=q.trim();
   document.getElementById('searchWrap').classList.toggle('has', !!state.search);
+  if(state.deepdive){ if(state.search){ state.deepdive=null; renderSearch(state.search); return; } }
   if(state.search) renderSearch(state.search); else renderCarousel();
 }
 document.getElementById('search').addEventListener('input',e=>doSearch(e.target.value));
@@ -720,7 +998,9 @@ document.getElementById('tglAreas').addEventListener('click',()=>toggleLevel('ar
 document.getElementById('tglInd').addEventListener('click',()=>toggleLevel('grp'));
 document.getElementById('tglDetails').addEventListener('click',()=>toggleLevel('story'));
 document.getElementById('pinClear').addEventListener('click',clearPin);
+document.getElementById('pinDive').addEventListener('click',()=>{ if(state.pin)openDeepDive(state.pin.area,state.pin.disease); });
 window.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&state.deepdive){ closeDeepDive(); return; }
   if(document.activeElement===document.getElementById('search'))return;
   if(state.search)return;
   if(e.key==='ArrowLeft')navTo(state.focus-1);

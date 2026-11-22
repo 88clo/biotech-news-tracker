@@ -44,9 +44,24 @@ python3 parse_notes.py notes --html-template template.html --html-out index.html
 - **Three toggles** — Areas, Indications, Details (Details collapsed by default).
 - **Follow an indication** — click a story (or an indication header) and every
   week aligns that indication on the same row, so you can read it across time.
-- **Market badge** — stories with a market size ≥ $1B show a green badge; the
-  company name is highlighted in yellow. Negative stories read in red.
+- **"Interesting" highlighting** — a company's name is highlighted when the story
+  is interesting: **yellow** for a drug with ≥ $750M peak sales, **violet ◇** for
+  a concept/platform worth watching that has no market figure yet.
+- **Market badge on every drug** — green ≥ $750M, grey below, amber "◇ no size"
+  for an unquantified asset. A `~` prefix marks a figure computed from the
+  component math rather than written in the notes.
+- **Negative stories** read in **red** (failed/missed trials, discontinuations,
+  CRLs, holds, withdrawals, staff cuts, deprioritizations).
+- **Indication deep dive** — click the 📈 on any indication (or "Deep dive" while
+  following one) to open a per-indication analysis: the **frontier**
+  (best-in-disease leaders to beat), the **setbacks** (what has failed), the
+  **mechanism landscape** (targets & modalities in play, crowding vs white
+  space), a **timeline**, and a one-click **breakthrough brief** — a rigorous,
+  data-grounded prompt you can paste into Claude to brainstorm genuinely
+  non-incremental drug ideas for that indication.
 - **Search** — type a disease for a month-by-month timeline across all weeks.
 
-Detection rules are editable near the top of `parse_notes.py` (`BIG_MKT`,
-`NEGATIVE_RX`, and the disease-canonicalization tables).
+Detection rules are editable near the top of `parse_notes.py`:
+`INTERESTING_MUSD` (the $750M "interesting" bar), `NEGATIVE_RX` (red-flag
+vocabulary), the modality/target/stage extractors (which power the deep dive),
+and the disease-canonicalization tables.
