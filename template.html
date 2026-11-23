@@ -299,6 +299,14 @@ body.has-panel .footer{padding-right:var(--panel-w)}
 .sp-con-ev .et b{color:var(--ink);font-weight:600}
 .nk{font-family:var(--mono);font-size:9px;padding:0 4px;border-radius:3px}
 .nk.good{color:#1d6b3f;background:#e6f1ea}.nk.bad{color:#b3261e;background:#fbe9e7}.nk.neu{color:#5b6270;background:#eceef1}
+.ev-click{cursor:pointer;border-radius:6px;transition:background .12s}
+.ev-click:hover{background:var(--accent-bg)}
+.ev-go{margin-left:auto;color:var(--ink-faint);font-size:11px;opacity:0;transition:opacity .12s}
+.ev-click:hover .ev-go{opacity:1}
+.sp-con-ev li.ev-click{padding:2px 4px;margin:0 -4px}
+.story.flash{animation:flashbg 1.5s ease-out}
+@keyframes flashbg{0%,30%{background:#FFF3C4}100%{background:transparent}}
+@media (prefers-reduced-motion:reduce){.story.flash{animation:none}}
 /* frontier + timeline compact rows */
 .sp-row{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line-soft)}
 .sp-row:last-child{border-bottom:0}
@@ -311,6 +319,7 @@ body.has-panel .footer{padding-right:var(--panel-w)}
 .sp-mc{font-family:var(--mono);font-size:8.5px;font-weight:600;padding:1px 5px;border-radius:4px;background:#eceef1;color:#5b6270;border:1px solid #e0e2e8}
 .sp-mc.st{background:#eef2ff;color:#3d4a8a;border-color:#dde3fb}
 .sp-mc.mk{background:#12924e;color:#fff;border-color:#0f7d43}
+.sp-mc.eff{background:#1b2430;color:#fff;border-color:#1b2430;font-weight:700}
 .sp-mc.nkk.good{background:#e6f1ea;color:#1d6b3f;border-color:#cfe6d8}
 .sp-mc.nkk.bad{background:#fbe9e7;color:#b3261e;border-color:#f0cfca}
 .sp-mc.nkk.neu{background:#eef2ff;color:#3d4a8a;border-color:#dde3fb}
@@ -537,6 +546,7 @@ function renderNodes(nodes,cat,wid,pathPrefix,areaName,curDisease){
       const has=node.details&&node.details.length;
       const sk=keyStory(wid,cat,path+'#'+idx);
       const s=el('div','story'+(has?' hasdetail':'')+(isOpen('story',sk)?' open':''));
+      if(node._uid) s.dataset.uid=node._uid;
       const head=el('button','story-head');
       head.appendChild(el('span',null, has?TWCHEV:'<span class="tw" style="opacity:0"></span>'));
       const body=el('div');
@@ -712,6 +722,27 @@ function navTo(i){
   // No re-align here: alignPinned already shifted every week (not just the
   // visible ones) onto the same row, so switching weeks needs no vertical move.
 }
+// jump from a panel item to its headline in the carousel
+function gotoStory(uid, week){
+  if(state.search){ document.getElementById('search').value=''; doSearch(''); }
+  const i=WEEKS.indexOf(week);
+  if(i>=0 && i!==state.focus){ state.focus=i; layout(); }
+  requestAnimationFrame(()=>{
+    const cols=[...document.querySelectorAll('#track .weekcol')];
+    const col=cols[state.focus]||document;
+    const elm=col.querySelector('[data-uid="'+uid+'"]') || document.querySelector('#track [data-uid="'+uid+'"]');
+    if(!elm)return;
+    const area=elm.closest('.area'); if(area)area.classList.add('open');
+    const grp=elm.closest('.grp'); if(grp)grp.classList.add('open');
+    if(elm.classList.contains('hasdetail')) elm.classList.add('open');
+    if(state.pin) alignPinned(false);
+    requestAnimationFrame(()=>{
+      const top=elm.getBoundingClientRect().top+window.scrollY-headerOffset();
+      window.scrollTo({top:Math.max(0,top), behavior:'smooth'});
+      elm.classList.add('flash'); setTimeout(()=>elm.classList.remove('flash'),1500);
+    });
+  });
+}
 
 /* ---------- timeline ---------- */
 function renderTimeline(){
@@ -739,6 +770,7 @@ function flatten(){ // one-time flat index of every story across all weeks/cats
           nodes.forEach(node=>{
             if(node.type==='group')walk(node.children,crumbs.concat(node.label));
             else{
+              node._uid='u'+rows.length;           // stable id for click-to-navigate
               const detailText=collectText(node.details);
               rows.push({week:w,cat,crumbs:crumbs.slice(),title:node.title,node:node,
                 mkt:node.mkt,mktLabel:node.mktLabel,neg:node.neg,company:node.company,
@@ -975,6 +1007,23 @@ function mechSignal(){
   });
   _MECH={mod,tgt}; return _MECH;
 }
+// clean frontier row focused on the efficacy bar; click to jump to the headline
+function frontierRow(r){
+  const n=r.node, row=el('div','sp-row ev-click'); row.title='Go to this headline';
+  const wk=el('span','sp-row-wk'); wk.textContent=r.week.meta.short||r.week.meta.label; row.appendChild(wk);
+  const main=el('div','sp-row-main');
+  const t=el('div','sp-row-t'); t.innerHTML=withCompany(n.title,n.company,coClass(n)); main.appendChild(t);
+  const m=el('div','sp-row-m');
+  let h='';
+  if(n.efficacy)h+='<span class="sp-mc eff">'+escapeHtml(n.efficacy)+'</span>';
+  else h+='<span class="sp-mc nkk '+newsKindClass(n.newsKind)+'">'+escapeHtml(stageNews(n))+'</span>';
+  if(n.stage && n.stageRank>=5)h+='<span class="sp-mc st">'+escapeHtml(n.stage)+'</span>';
+  if(n.mkt!=null)h+='<span class="sp-mc mk">'+escapeHtml(n.mktLabel)+'</span>';
+  m.innerHTML=h; main.appendChild(m);
+  row.appendChild(main);
+  row.addEventListener('click',()=>gotoStory(n._uid, r.week));
+  return row;
+}
 function segChips(n){
   const sg=n.seg||{line:[],histo:[],bio:[]}, out=[];
   (sg.line||[]).forEach(x=>out.push('<span class="sp-mc seg line">'+escapeHtml(x)+'</span>'));
@@ -1082,42 +1131,36 @@ function renderPanel(area,disease){
       c.items.slice(0,4).forEach(r=>{ const n=r.node;
         const win=assetWin(n); const mk=n.neg?'d':(win?'u':'z'), sym=n.neg?'▼':(win?'▲':'•');
         const nkc=newsKindClass(n.newsKind);
-        const li=el('li');
+        const li=el('li','ev-click'); li.title='Go to this headline';
         li.innerHTML='<span class="mk '+mk+'">'+sym+'</span><span class="ew">'+escapeHtml(r.week.meta.short||'')+'</span>'+
           '<span class="et"><b>'+escapeHtml(n.company||stripTags(n.title).slice(0,18))+'</b> '+
-          '<span class="nk '+nkc+'">'+escapeHtml(stageNews(n))+'</span></span>';
+          '<span class="nk '+nkc+'">'+escapeHtml(stageNews(n))+'</span><span class="ev-go">↪</span></span>';
+        li.addEventListener('click',()=>gotoStory(n._uid, r.week));
         ul.appendChild(li); });
       box.appendChild(ul); s.appendChild(box);
     });
     body.appendChild(s);
   }
 
-  // frontier + coverage / whitespace
+  // frontier — what best-in-class efficacy looks like (the bar to beat)
   const front=rows.filter(r=>!r.node.neg).sort((a,b)=>frontierScore(b)-frontierScore(a)).slice(0,5);
+  const cov=segmentCoverage(rows);
   if(front.length){
-    const s=section('Frontier · best-in-disease','the standard to beat — and where it leaves gaps');
-    // synthesis: what the frontier actually is
-    const topMod=tally(rows.filter(r=>r.node.asset),'modality')[0];
-    const adv=front.filter(r=>(r.node.stageRank||0)>=5).length;
-    const syn=el('div','sp-syn');
-    syn.innerHTML='The leading edge is '+(topMod?('<b>'+escapeHtml(topMod[0])+'</b>'):'a mix of modalities')+
-      (adv?(' with <b>'+adv+'</b> approved/registration-stage asset'+(adv>1?'s':'')):'')+
-      '. Each leader below shows its line, histology and biomarker population — the slots a new drug must either beat or route around.';
-    s.appendChild(syn);
-    front.forEach(r=>s.appendChild(spRow(r,{meta:true})));
-    // coverage + whitespace
-    const cov=segmentCoverage(rows);
-    const cv=el('div','sp-cov');
-    const covBits=[];
-    if(cov.histo.sq+cov.histo.nsq>0) covBits.push('Histology: non-sq '+cov.histo.nsq+' · squamous '+cov.histo.sq);
-    if(cov.line.early+cov.line['1L']+cov.line.late>0) covBits.push('Line: 1L '+cov.line['1L']+' · 2L+ '+cov.line.late+(cov.line.early?' · adj '+cov.line.early:''));
-    if(cov.topMarkers.length) covBits.push('Biomarker-selected '+cov.bioSel+'/'+cov.assets+' ('+cov.topMarkers.slice(0,4).map(([m,c])=>m+(c>1?'×'+c:'')).join(', ')+')');
-    cv.innerHTML='<div class="sp-cov-h">Where the frontier plays</div>'+covBits.map(b=>'<div class="sp-cov-l">'+b+'</div>').join('');
-    if(cov.ws.length){
-      cv.innerHTML+='<div class="sp-cov-h ws">Whitespace the frontier leaves</div>'+
-        '<div class="sp-cov-ws">'+cov.ws.map(w=>'<span class="sp-mc seg white">'+escapeHtml(w)+'</span>').join('')+'</div>';
+    const s=section('Frontier · the efficacy bar','best-in-class results a new drug has to beat');
+    const effLeaders=front.filter(r=>r.node.efficacy).slice(0,3);
+    if(effLeaders.length){
+      const syn=el('div','sp-syn');
+      syn.innerHTML='Best-in-class today: '+effLeaders.map(r=>'<b>'+escapeHtml(r.node.efficacy)+'</b> ('+escapeHtml(r.node.company||'')+')').join(', ')+'.';
+      s.appendChild(syn);
     }
-    s.appendChild(cv);
+    front.forEach(r=>s.appendChild(frontierRow(r)));
+    // compact whitespace callout (kept; this is where to build instead)
+    if(cov.ws.length){
+      const cv=el('div','sp-cov');
+      cv.innerHTML='<div class="sp-cov-h ws">Whitespace — where no frontier drug wins yet</div>'+
+        '<div class="sp-cov-ws">'+cov.ws.map(w=>'<span class="sp-mc seg white">'+escapeHtml(w)+'</span>').join('')+'</div>';
+      s.appendChild(cv);
+    }
     body.appendChild(s);
   }
 
@@ -1188,21 +1231,43 @@ function breakthroughDirections(area,disease,rows,cons,leader,I,cov){
         ' (e.g. '+escapeHtml(t.wonIn.slice(0,3).join(', '))+') but is <b>untried in '+escapeHtml(disease)+
         '</b> — a chance to define the class rather than crowd an existing target.'});
   });
-  // 4) Escape the crowded target
+  // candidate platform modalities to name concretely (validating elsewhere, untried here)
+  const candMods=ALL_MODALITIES.filter(m=>NOVEL_PLATFORMS.has(m)&&!present.has(m)&&sig.mod[m]&&Object.keys(sig.mod[m].wins).some(x=>x!==disease));
+  // 4) Escape the crowded target — name concrete alternative modalities
   if(I&&I.crowded.length){
     const c=I.crowded[0];
-    dirs.push({cls:'crowd',title:'Escape the crowded target',
-      body:'<b>'+escapeHtml(c[0])+'</b> is saturated ('+c[1]+' assets). Another '+escapeHtml(c[0])+
-        ' agent won’t differentiate — differentiation comes from a <b>novel target or a fundamentally better modality</b> on the same biology.'});
+    const domMod=(tally(rows.filter(r=>(r.node.target===c[0])),'modality')[0]||[])[0];
+    const alts=candMods.slice(0,3);
+    const altTxt=alts.length?('Concretely, try a <b>'+escapeHtml(alts.join(', '))+'</b> against '+escapeHtml(c[0])+
+      ' or a resistance node downstream of it'+(domMod?(', rather than yet another '+escapeHtml(domMod)):'')+'.'):
+      'Differentiate with a mechanism that overcomes resistance to the current agents, not another '+escapeHtml(domMod||c[0])+'.';
+    dirs.push({cls:'crowd',title:'Escape the crowded '+c[0],
+      body:'<b>'+escapeHtml(c[0])+'</b> is saturated ('+c[1]+' assets'+(domMod?', mostly '+escapeHtml(domMod):'')+'). A me-too won’t differentiate. '+altTxt});
   }
-  // 5) Raise the bar on the frontier leader (fallback)
-  if(dirs.length<4 && leader){
+  // 5) Beat the leader — name the benchmark and the easiest axis
+  if(leader){
     const n=leader.node, lb=[n.modality,n.target].filter(Boolean).join('/');
-    dirs.push({cls:'leader',title:'Beat the leader on its ceiling',
-      body:'The frontier is <b>'+escapeHtml(n.company||stripTags(n.title).slice(0,24))+'</b>'+(lb?' ('+escapeHtml(lb)+')':'')+
-        '. Match-the-mechanism won’t win — beat it on <b>durability/cure, acquired resistance, therapeutic index, or patients it can’t reach</b>.'});
+    const ax=beatableAxis(rows,cov);
+    const bar=n.efficacy?('Its published bar is <b>'+escapeHtml(n.efficacy)+'</b> — beat it decisively (a markedly better number, not a few points). '):'';
+    dirs.push({cls:'leader',title:'Beat the leader where it is weakest',
+      body:'The frontier is <b>'+escapeHtml(n.company||stripTags(n.title).slice(0,24))+'</b>'+(lb?' ('+escapeHtml(lb)+')':'')+'. '+bar+
+        'Easiest axis to beat: <b>'+escapeHtml(ax.axis)+'</b> — '+ax.why+'. Build specifically for that, not a broad me-too.'});
   }
+  // prioritise the most decision-useful angles
+  const prio={subpop:0,leader:1,rescue:2,crowd:3,transfer:4};
+  dirs.sort((a,b)=>(prio[a.cls]-prio[b.cls]));
   return dirs.slice(0,4);
+}
+// Which performance axis is easiest to beat, from the evidence.
+function beatableAxis(rows,cov){
+  const txt=rows.map(r=>stripTags(r.node.title)+' '+(r.node.details?collectText(r.node.details):'')).join(' ');
+  if(/resist|relaps|acquired|escape|rebound|progress(?:ion|ed) on/i.test(txt))
+    return {axis:'acquired resistance', why:'assets here already cite resistance/relapse, so durable control is unmet'};
+  if(cov && cov.bioSel>=Math.max(2,cov.assets*0.5))
+    return {axis:'patient reach', why:'most assets are biomarker-selected, leaving the unselected majority untreated'};
+  if(/brain|CNS|mets|metasta/i.test(txt))
+    return {axis:'CNS / hard-to-reach disease', why:'CNS and metastatic compartments are poorly served by current agents'};
+  return {axis:'depth & durability of response', why:'responses are not yet deep or durable enough to approach cure'};
 }
 function spStat(v,l,cls){ return '<div class="sp-stat '+(cls||'')+'"><b>'+v+'</b><span>'+l+'</span></div>'; }
 function fmtB(m){ return m>=1000?('$'+(m/1000).toFixed(1).replace(/\.0$/,'')+'B'):('$'+Math.round(m)+'M'); }
@@ -1260,7 +1325,7 @@ function breakthroughPrompt(area,disease,rows){
   p+='CURRENT FRONTIER — the best-in-disease assets any new drug must beat:\n';
   front.forEach(r=>{ const n=r.node;
     p+='- '+strip(n.title).slice(0,220);
-    const tags=[n.modality,n.target&&('target '+n.target),n.stage,n.mkt!=null?('~'+n.mktLabel+' peak'):null].filter(Boolean);
+    const tags=[n.modality,n.target&&('target '+n.target),n.stage,n.efficacy&&('efficacy bar: '+n.efficacy),n.mkt!=null?('~'+n.mktLabel+' peak'):null].filter(Boolean);
     if(tags.length)p+='  ['+tags.join(', ')+']';
     p+='\n';
   });
@@ -1345,6 +1410,7 @@ function init(){
   document.getElementById('rangeLabel').textContent=WEEKS[0].meta.label+'  —  '+WEEKS[WEEKS.length-1].meta.label;
   document.getElementById('genLabel').textContent=WEEKS.length+' weeks indexed';
   setHdrH();
+  if(!INDEX)INDEX=flatten();   // assigns stable _uid to every story node before first render
   renderCarousel();
 }
 init();

@@ -606,6 +606,43 @@ def extract_segments(blob):
     bio = [t for t in raw if not any(t != o and t.lower() in o.lower() for o in raw)]
     return {'line': line, 'histo': histo, 'bio': bio[:3]}
 
+# Best efficacy read in the text — the benchmark a new drug must beat.
+# Returns a short string like "PFS HR 0.40; OS HR 0.48; ORR 74%" or
+# "met PFS endpoint", or None.
+def extract_efficacy(blob):
+    out = []
+    for m in re.finditer(r'(?i)(PFS|OS|rPFS|DFS|EFS|DoR)\s*HR\s*(?:of\s*)?(\d?\.\d+)', blob):
+        out.append(m.group(1).upper() + ' HR ' + m.group(2))
+    for m in re.finditer(r'(\d?\.\d+)\s*(?:PFS|OS)?\s*HR\b', blob):
+        tag = 'HR ' + m.group(1)
+        if not any('HR ' + m.group(1) in o for o in out):
+            out.append(tag)
+    m = (re.search(r'(?i)ORR\s*(?:of\s*)?\(?(\d{1,3})%', blob)
+         or re.search(r'(?i)\(?(\d{1,3})%\s*(?:vs\s*\d{1,3}%\s*)?ORR', blob)
+         or re.search(r'(?i)met ORR \((\d{1,3})%', blob)
+         or re.search(r'(?i)response rate of (\d{1,3})%', blob))
+    if m: out.append('ORR ' + m.group(1) + '%')
+    m = re.search(r'(\d{1,3})%\s*(?:vs\s*\d{1,3}%\s*)?MRD[- ]?(?:neg\w*|CR)?', blob)
+    if m: out.append(m.group(1) + '% MRD-CR')
+    m = re.search(r'(?i)(\d{1,3})%\s*(?:PFS/OS\s*)?(?:risk\s*)?reduction', blob)
+    if m: out.append(m.group(1) + '% risk reduction')
+    m = re.search(r'(?i)(\d+\.?\d*)\s*mos?\s*vs\s*(\d+\.?\d*)\s*mos?\s*(OS|PFS)?', blob)
+    if m: out.append((m.group(3) or 'OS').upper() + ' ' + m.group(1) + ' vs ' + m.group(2) + 'mo')
+    for m in re.finditer(r'(?i)median\s*(PFS|OS)\s*(?:of\s*)?(\d+\.?\d*)\s*(?:mo|months)', blob):
+        out.append('m' + m.group(1).upper() + ' ' + m.group(2) + 'mo')
+    seen = []
+    for x in out:
+        if x not in seen:
+            seen.append(x)
+    if seen:
+        return '; '.join(seen[:3])
+    # qualitative fallback
+    mq = re.search(r'(?i)met (?:the )?(?:co-)?primary\s*(PFS|OS|ORR|endpoint)', blob)
+    if mq:
+        g = mq.group(1).upper()
+        return 'met ' + ('primary endpoint' if g == 'ENDPOINT' else g + ' endpoint')
+    return None
+
 # Nature of the news (for the "concepts rising vs failing" summaries).
 def news_kind(blob, neg, pos, stage_rank):
     b = blob
@@ -843,6 +880,7 @@ def parse_week(path, meta):
             'modality': modality, 'target': extract_target(blob),
             'stage': stage, 'stageRank': stage_rank,
             'newsKind': news_kind(blob, neg, positive, stage_rank),
+            'efficacy': extract_efficacy(blob),
             'seg': extract_segments(blob),
             'asset': asset, 'interesting': interesting,
             'details': [to_detail(k) for k in node['kids']],
