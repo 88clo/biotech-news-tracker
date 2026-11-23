@@ -59,7 +59,7 @@ SUBGROUP_DEFS = {
                              'Leukemia', 'Leukemia (other)', 'Polycythemia vera', 'Myelofibrosis',
                              'Myelodysplastic syndrome', 'MDS']),
         ('Head & neck',     ['Head & neck cancer']),
-        ('Neuro-oncology',  ['Glioblastoma', 'GBM', 'Brain cancer']),
+        ('Neuro-oncology',  ['Glioblastoma', 'GBM', 'Brain cancer', 'CNS tumor']),
         ('Other solid',     ['Solid tumors (various)', 'Neuroendocrine tumors', 'Sarcoma',
                              'Thyroid cancer', 'Cancer cachexia']),
         ('Screening & Dx',  ['Multi-cancer detection']),
@@ -236,6 +236,19 @@ TA_CANON = {
 def canon_ta(name):
     return TA_CANON.get(name.lower().strip().rstrip(':'), name.strip())
 
+# normalize a compound-header remainder into a disease the patterns recognize
+SECTION_CANON = {'cns': 'glioblastoma', 'breast': 'breast cancer'}
+def compound_ta(low):
+    """Recognize a compound disease-area header whose FIRST word is a therapeutic
+    area and the rest is an organ/disease hint, e.g. 'cancer gi' -> ('Cancer','gi'),
+    'cancer breast' -> ('Cancer','breast'). Lets a week that splits oncology into
+    'Cancer GI', 'Cancer Breast', ... merge back into one Cancer area instead of
+    scattering into theme buckets. Returns (TA, remainder) or (None, None)."""
+    parts = low.split()
+    if len(parts) >= 2 and AREA_CATEGORY.get(parts[0]) == 'disease':
+        return canon_ta(parts[0]), ' '.join(parts[1:]).strip()
+    return (None, None)
+
 # Organ-system / catch-all headers that are NOT diseases: bypassed so the
 # specific disease (inferred from the story) is used. If a story under one of
 # these can't be resolved, it goes to "Misc." rather than to the organ label.
@@ -293,6 +306,7 @@ _DP_RAW = {
     ('Biliary tract cancer', r'BTC|(?i:biliary|cholangio|gallbladder)'),
     ('Esophageal cancer', r'ESCC|(?i:esophageal|oesophageal)'),
     ('Gastric/GEJ cancer', r'GEJ|(?i:gastric|gastro.?esoph)'),
+    ('Glioblastoma', r'GBM|(?i:glioblastoma|glioma|astrocytoma|diffuse midline glioma|\bDIPG\b)'),
     ('Neuroendocrine tumors', r'GEP.?NET|NETs?\b|(?i:neuroendocrine)'),
     ('Pancreatic cancer', r'PDAC|(?i:pancrea)'),
     ('Liver cancer (HCC)', r'HCC|(?i:hepatocellular)'),
@@ -457,6 +471,40 @@ _DP_RAW = {
 DISEASE_PATTERNS = {ta: [(name, re.compile(p)) for name, p in rows]
                     for ta, rows in _DP_RAW.items()}
 
+# A line that is metadata about the PRECEDING story (a market-size calc, an
+# efficacy-benchmark block), not a headline of its own. When the notes leave one
+# un-indented it would otherwise become a bogus standalone story.
+_METADATA_LINE = re.compile(r'(?i)^\s*(?:market size|tam|efficacy benchmark|'
+                            r'\w+ efficacy benchmarks?|benchmark)\b')
+def _absorb_metadata(nodes):
+    """Move any metadata leaf (a stray 'Market size: ...' bullet, etc.) into the
+    previous sibling so it enriches that story instead of becoming its own. Runs at
+    every level of the tree, so it's format-agnostic."""
+    out = []
+    for n in nodes:
+        n['kids'] = _absorb_metadata(n['kids'])
+        if _METADATA_LINE.match(n.get('label', '')) and out:
+            out[-1]['kids'].append(n)
+        else:
+            out.append(n)
+    return out
+
+def _merge_disease_groups(existing, new):
+    """Combine two lists of disease groups by label (concatenating their stories),
+    then re-sort (most stories first, 'Misc.' last). Lets an area that is built in
+    several passes accumulate instead of overwrite."""
+    order, buckets = [], {}
+    for grp in list(existing) + list(new):
+        lab = grp['label']
+        if lab not in buckets:
+            buckets[lab] = []
+            order.append(lab)
+        buckets[lab].extend(grp['children'])
+    merged = [{'type': 'group', 'label': lab, 'children': buckets[lab]} for lab in order]
+    merged.sort(key=lambda g: (1 if g['label'] == 'Misc.' else 0,
+                               -len(g['children']), g['label'].lower()))
+    return merged
+
 def infer_disease(ta, text, exclude=None):
     """The disease a piece of text is about. When several are named (e.g. a
     'for melanoma/lung/esophageal' pan-tumor headline), prefer the one mentioned
@@ -545,8 +593,15 @@ def resolve_disease(ta, title, detail_text, chain):
     # 3) the details (last text source: comparators & prior trials live here)
     d = infer_disease(ta, detail_text)
     if d: return d
-    # 4) fall back to the nearest real grouping header, else Misc.
+    # 4) fall back to the nearest grouping header / section hint. Try to read a
+    #    real disease out of it first (so "breast" -> Breast cancer), and only then
+    #    fall back to the header label verbatim.
     for lab in reversed(chain):
+        if not lab:
+            continue
+        d = infer_disease(ta, lab)
+        if d:
+            return d
         if lab.lower().strip().rstrip(':') in CONTAINERS:
             continue
         return canon_disease_label(lab)
@@ -1149,6 +1204,9 @@ def parse_week(path, meta):
     # story's details and must nest one level deeper, instead of each becoming its
     # own sibling story.
     para_anchor = False
+    # organ/disease hint from a compound area header ("Cancer GI" -> "gi"), used as
+    # a fallback when a story in that section doesn't name its disease in text.
+    section_disease = None
 
     def flush_area():
         nonlocal raw_nodes, cur_area
@@ -1166,11 +1224,17 @@ def parse_week(path, meta):
             else:
                 roots.append(node)
             stack.append((rel, node))
-        # disease areas -> strict TA -> disease -> stories; others keep nesting
+        roots = _absorb_metadata(roots)
+        # disease areas -> strict TA -> disease -> stories; others keep nesting.
+        # MERGE into any existing children, because one area can be flushed several
+        # times in a week (e.g. compound headers "Cancer GI", "Cancer Breast", ...
+        # all feed the single Cancer area); a plain assignment would drop all but
+        # the last section.
         if cur_area.get('_cat') == 'disease':
-            cur_area['children'] = regroup_disease(cur_area['area'], roots)
+            new = regroup_disease(cur_area['area'], roots)
+            cur_area['children'] = _merge_disease_groups(cur_area.get('children') or [], new)
         else:
-            cur_area['children'] = [classify(n) for n in roots]
+            cur_area['children'] = (cur_area.get('children') or []) + [classify(n) for n in roots]
         raw_nodes = []
 
     def raw_detail_text(node):
@@ -1240,7 +1304,9 @@ def parse_week(path, meta):
                 if n['kids'] and is_group_label(n['label'], len(n['kids'])):
                     walk(n['kids'], chain + [n['label']])
                 else:
-                    dis = resolve_disease(ta_name, n['label'], raw_detail_text(n), chain)
+                    sec = n.get('section')
+                    ch = chain + [sec] if sec else chain   # section header is the nearest fallback
+                    dis = resolve_disease(ta_name, n['label'], raw_detail_text(n), ch)
                     add(dis, make_story(n, ta_name, dis))
         walk(roots, [])
         ordered = sorted(order, key=lambda d: (1 if d == 'Misc.' else 0,
@@ -1277,7 +1343,7 @@ def parse_week(path, meta):
     def make_node(raw):
         lab = label_of(raw)
         return {'label': lab, 'title_html': to_html_inline(raw),
-                'full_text': label_of(raw), 'kids': []}
+                'full_text': label_of(raw), 'kids': [], 'section': section_disease}
 
     i = 0
     while i < len(lines):
@@ -1286,11 +1352,11 @@ def parse_week(path, meta):
             plain = label_of(raw)
             low = plain.lower().strip().rstrip(':')
             if is_underlined_header(raw) and low in BUCKET_MARKERS:
-                flush_area(); cur_area = None; para_anchor = False
+                flush_area(); cur_area = None; para_anchor = False; section_disease = None
                 cur_cat = BUCKET_MARKERS[low]
                 i += 1; continue
             if low in BUCKET_MARKERS:
-                flush_area(); cur_area = None; para_anchor = False
+                flush_area(); cur_area = None; para_anchor = False; section_disease = None
                 cur_cat = BUCKET_MARKERS[low]
                 i += 1; continue
             # Italic-underline sub-divider (e.g. "Cancer GI") inside an existing
@@ -1300,17 +1366,25 @@ def parse_week(path, meta):
             # no current area to attach to.)
             if is_italic_subheader(raw) and cur_area is not None:
                 i += 1; continue
-            # area heading (known -> fixes category; unknown plain heading -> new area in cur_cat)
+            # compound disease header ("Cancer GI", "Cancer Breast", ...) -> merge
+            # into the one TA area; keep the remainder as a section disease hint.
+            cta, crem = compound_ta(low)
             if low in AREA_CATEGORY:
-                flush_area(); para_anchor = False
+                flush_area(); para_anchor = False; section_disease = None
                 cur_cat = AREA_CATEGORY[low]
                 cur_area = get_area(cur_cat, plain)
                 cur_area['_base'] = -1
+            elif cta and crem:
+                flush_area(); para_anchor = False
+                cur_cat = 'disease'
+                cur_area = get_area('disease', cta)
+                cur_area['_base'] = -1
+                section_disease = None if crem in CONTAINERS else SECTION_CANON.get(crem, crem)
             elif word_count(plain) <= 5 and not re.search(r'\d', plain):
                 # short-ish plain heading with no digits -> treat as a new area.
                 # Unknown named buckets are (in these notes) business/theme items,
                 # so default them to theme rather than the previous category.
-                flush_area(); para_anchor = False
+                flush_area(); para_anchor = False; section_disease = None
                 cur_cat = 'theme'
                 cur_area = get_area(cur_cat, plain)
                 cur_area['_base'] = -1
@@ -1338,7 +1412,7 @@ def parse_week(path, meta):
             new_cat = AREA_CATEGORY.get(low, cur_cat)
             # only treat as an area if it looks like an area label (short, group-ish)
             if low in AREA_CATEGORY or (word_count(plain) <= 5 and not STORY_MARKERS.search(plain)):
-                flush_area(); para_anchor = False
+                flush_area(); para_anchor = False; section_disease = None
                 cur_cat = new_cat
                 cur_area = get_area(cur_cat, plain)
                 cur_area['_base'] = 0
