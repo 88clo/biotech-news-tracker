@@ -33,6 +33,134 @@ def _reg(cat, names):
     for n in names:
         AREA_CATEGORY[n.lower()] = cat
 
+# --------------------------------------------------------------------------
+# Indication subgroups: a logical mid-layer between a therapeutic area (TA) and
+# its indications, so a crowded TA like Cancer reads as GI / Thoracic / Heme etc.
+# SUBGROUP_ORDER fixes the subgroup display order per TA (same in every week, so
+# columns stay aligned). SUBGROUP_MEMBERS maps a subgroup -> its indications.
+# Any indication in a mapped TA that isn't listed (incl. 'Misc.') falls into the
+# TA's last subgroup ('Other'). A TA with no entry here stays flat (no subgroups).
+# --------------------------------------------------------------------------
+SUBGROUP_DEFS = {
+    'Cancer': [
+        ('Thoracic',        ['NSCLC', 'SCLC', 'Mesothelioma', 'Lung cancer']),
+        ('GI',              ['Pancreatic cancer', 'Colorectal cancer', 'Esophageal cancer',
+                             'Gastric cancer', 'Biliary tract cancer', 'Hepatocellular carcinoma',
+                             'Gastroesophageal cancer', 'Anal cancer']),
+        ('GU',              ['Prostate cancer', 'Bladder cancer', 'Renal cell carcinoma',
+                             'Urothelial cancer', 'Testicular cancer']),
+        ('Breast & gyn',    ['Breast cancer', 'Ovarian cancer', 'Cervical cancer',
+                             'Endometrial cancer', 'Uterine cancer']),
+        ('Skin',            ['Melanoma', 'Uveal melanoma', 'Merkel cell carcinoma',
+                             'Cutaneous squamous cell carcinoma', 'Basal cell carcinoma']),
+        ('Heme malignancy', ['Multiple myeloma', 'Lymphoma', 'AML', 'ALL', 'CLL', 'CML',
+                             'Leukemia', 'Polycythemia vera', 'Myelofibrosis',
+                             'Myelodysplastic syndrome', 'MDS']),
+        ('Head & neck',     ['Head & neck cancer']),
+        ('Neuro-oncology',  ['Glioblastoma', 'GBM', 'Brain cancer']),
+        ('Other solid',     ['Solid tumors (various)', 'Neuroendocrine tumors', 'Sarcoma',
+                             'Thyroid cancer', 'Cancer cachexia']),
+        ('Screening & Dx',  ['Multi-cancer detection']),
+        ('Other', []),
+    ],
+    'Cardio': [
+        ('Lipids & athero', ['Atherosclerosis / lipids', 'Dyslipidemia', 'Lp(a)']),
+        ('Heart muscle',    ['Cardiomyopathy', 'Heart failure']),
+        ('Vascular',        ['Hypertension', 'Stroke', 'Pulmonary hypertension', 'Thrombosis']),
+        ('Structural',      ['Valve disease']),
+        ('Other', []),
+    ],
+    'Immuno': [
+        ('Skin & allergy',  ['Atopic dermatitis', 'Hidradenitis (HS)', 'Chronic urticaria',
+                             'Prurigo nodularis', 'Vitiligo', 'Alopecia']),
+        ('Rheumatology',    ['Lupus / lupus nephritis', 'Myositis / IBM', 'Rheumatoid arthritis',
+                             'Vasculitis (ANCA)', 'Psoriatic arthritis', 'Scleroderma',
+                             'Sjogren’s', "Sjogren's"]),
+        ('Respiratory',     ['Asthma', 'Bronchiectasis', 'COPD', 'Respiratory (immune)']),
+        ('GI',              ['IBD / Crohn’s', "IBD / Crohn's", 'Ulcerative colitis', 'Celiac']),
+        ('Renal',           ['IgA nephropathy', 'Membranous nephropathy']),
+        ('Neuro-immune',    ['Multiple sclerosis', 'Myasthenia gravis', 'NMOSD']),
+        ('Other', []),
+    ],
+    'Infectious': [
+        ('Viral',           ['HIV', 'Hepatitis', 'COVID-19', 'Influenza', 'Measles', 'Ebola',
+                             'RSV', 'Dengue', 'Mpox', 'CMV']),
+        ('Bacterial & fungal', ['C. difficile', 'Prosthetic joint infection', 'Tuberculosis',
+                             'UTI', 'Gonorrhea', 'Fungal']),
+        ('Vaccines & policy', ['Vaccines', 'Policy & surveillance', 'RFK Jr.']),
+        ('Other', []),
+    ],
+    'Metabolic': [
+        ('Cardiometabolic', ['Obesity', 'Diabetes', 'MASH/NASH', 'Dyslipidemia', 'NAFLD']),
+        ('Rare metabolic',  ['ENPP1 deficiency', 'Fabry disease', 'Pompe disease',
+                             'Lysosomal / MPS', 'Prader-Willi', 'Gaucher', 'Wilson disease',
+                             'Homocystinuria', 'PKU']),
+        ('Other', []),
+    ],
+    'Neuro': [
+        ('Neurodegenerative', ["Alzheimer's", "Parkinson's", 'ALS', 'Huntington',
+                             'Frontotemporal dementia', 'Multiple system atrophy']),
+        ('Seizure & sleep', ['Epilepsy', 'Narcolepsy', 'Insomnia']),
+        ('Other', []),
+    ],
+    'Psych': [
+        ('Mood & anxiety',  ['Depression / TRD', 'Bipolar', 'Anxiety / GAD', 'PTSD']),
+        ('Psychotic',       ['Schizophrenia']),
+        ('Other', []),  # ADHD, substance use, Misc.
+    ],
+    'Muscle': [
+        ('Dystrophies',     ['Duchenne (DMD)', 'FSHD', 'Myotonic dystrophy', 'Becker',
+                             'Limb-girdle']),
+        ('Motor neuron',    ['Spinal muscular atrophy']),
+        ('Other', []),
+    ],
+}
+# flatten to lookup tables
+SUBGROUP_ORDER = {ta: [sg for sg, _ in defs] for ta, defs in SUBGROUP_DEFS.items()}
+SUBGROUP_OF = {}
+for _ta, _defs in SUBGROUP_DEFS.items():
+    m = {}
+    for _sg, _members in _defs:
+        for _ind in _members:
+            m[_ind.lower()] = _sg
+    SUBGROUP_OF[_ta] = m
+
+def subgroup_for(ta, indication):
+    """Return the subgroup label for an indication within a TA, or None if the TA
+    has no subgroup scheme defined."""
+    if ta not in SUBGROUP_OF:
+        return None
+    return SUBGROUP_OF[ta].get(indication.strip().lower(), 'Other')
+
+def apply_subgroups(area):
+    """Wrap a disease area's indication groups under subgroup nodes, in place.
+    No-op for TAs without a subgroup scheme, or areas with <2 subgroups populated."""
+    ta = area.get('area')
+    if ta not in SUBGROUP_ORDER:
+        return
+    groups = [g for g in area['children'] if g.get('type') == 'group']
+    if not groups:
+        return
+    order = SUBGROUP_ORDER[ta]
+    buckets = {}
+    for g in groups:
+        sg = subgroup_for(ta, g['label']) or 'Other'
+        buckets.setdefault(sg, []).append(g)
+    # if everything landed in one subgroup, keep the area flat
+    if len([sg for sg in buckets if buckets[sg]]) < 2:
+        return
+    out = []
+    for idx, sg in enumerate(order):
+        if buckets.get(sg):
+            out.append({'type': 'subgroup', 'label': sg, 'order': idx,
+                        'children': buckets[sg]})
+    # any subgroup produced but not in the fixed order (shouldn't happen) -> append
+    for sg in buckets:
+        if sg not in order and buckets[sg]:
+            out.append({'type': 'subgroup', 'label': sg, 'order': len(order),
+                        'children': buckets[sg]})
+    area['children'] = out
+
 _reg('modality', [
     'cell therapy', 'gene therapy', 'gene editing', 'drug delivery', 'techbio',
     'platforms', 'rna', 'radiopharma', 'radiopharmaceuticals', 'protein degradation',
@@ -1054,6 +1182,10 @@ def week_meta(path):
 def build(paths):
     weeks = [parse_week(p, week_meta(p)) for p in paths]
     weeks.sort(key=lambda w: w['meta']['sort'])
+    # cluster each disease area's indications into logical subgroups (GI, Thoracic…)
+    for w in weeks:
+        for area in w['categories'].get('disease', []):
+            apply_subgroups(area)
     return {'weeks': weeks, 'generated': True}
 
 def main():

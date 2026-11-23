@@ -133,6 +133,39 @@ header.top{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--p
 .grp-head .n{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--ink-faint)}
 .grp-body{display:none;padding-top:2px} .grp.open>.grp-body{display:block}
 
+/* subgroup: a light divider between a TA and its indications (GI, Thoracic…) */
+.subgrp{margin:3px 0 3px 2px}
+.subgrp-head{display:flex;align-items:center;gap:7px;padding:3px 2px 3px 4px;width:100%;border:0;background:transparent;text-align:left;cursor:pointer}
+.subgrp-head .chev{width:11px;height:11px;flex:0 0 11px;stroke:var(--ink-faint);fill:none;stroke-width:2.4;transition:transform .18s}
+.subgrp.open>.subgrp-head .chev{transform:rotate(90deg)}
+.subgrp-head .sglabel{font-size:9.5px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:var(--ink-faint)}
+.subgrp-head .n{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--ink-faint)}
+.subgrp-head:hover .sglabel{color:var(--ink)}
+.subgrp-body{display:none;padding-left:4px;border-left:1px dotted var(--line);margin-left:5px} .subgrp.open>.subgrp-body{display:block}
+.subgrp-body>.grp{margin-left:4px}
+
+/* overview / index column (always past the latest week) */
+.weekcol.overview{}
+.col-head.ov-head .live.idx{background:var(--ink);color:#fff}
+.ov-body{padding:4px 2px 24px}
+.ov-ind{margin:2px 0 6px 6px;border-left:2px solid var(--line);padding-left:10px}
+.ov-ind-head{display:flex;align-items:center;gap:8px;padding:4px 2px;width:100%;border:0;background:transparent;text-align:left;cursor:pointer;border-radius:5px}
+.ov-ind-head:hover{background:var(--accent-bg)}
+.ov-ind-head .ov-ind-name{font-size:12.5px;font-weight:700;color:var(--accent);font-family:var(--mono)}
+.ov-ind-head .n{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--ink-faint)}
+.ov-ind.misc .ov-ind-head .ov-ind-name{color:var(--ink-faint)}
+.ov-blurb{padding:1px 2px 3px 2px;display:flex;flex-direction:column;gap:2px}
+.ov-l{font-size:11px;line-height:1.35;color:var(--ink-soft);display:flex;flex-wrap:wrap;gap:6px;align-items:baseline}
+.ov-tag{font-size:8.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-faint);
+  border:1px solid var(--line);border-radius:4px;padding:0 4px;background:var(--paper)}
+.ov-l b{color:var(--ink);font-weight:600}
+.ov-bal .up{color:#1d6b3f;font-weight:600}.ov-bal .dn{color:#b3261e;font-weight:600}
+.ov-bal .ov-tot{color:var(--ink-faint);margin-left:auto;font-family:var(--mono);font-size:10px}
+.ov-trend .tr{font-size:10.5px;padding:1px 5px;border-radius:9px;font-weight:600}
+.ov-trend .tr.up{background:#e6f1ea;color:#1d6b3f}
+.ov-trend .tr.dn{background:#fbe9e7;color:#b3261e}
+.ov-trend .tr.ct{background:#fff4e0;color:#8a5a00}
+
 .story{border-left:2px solid var(--accent);margin:6px 0;padding-left:12px}
 .story-head{display:flex;gap:9px;align-items:flex-start;width:100%;border:0;background:transparent;text-align:left;padding:3px 2px}
 .story-head .tw{width:13px;height:13px;flex:0 0 13px;margin-top:3px;stroke:var(--ink-faint);fill:none;stroke-width:2.2;transition:transform .18s}
@@ -433,13 +466,25 @@ function countStories(nodes){let n=0;for(const x of nodes){n+= x.type==='story'?
 // in every week column -> you can scan across weeks and follow one disease.
 const DISEASE_RANK=(function(){
   const m={};
+  function eachGroup(nodes,fn){ (nodes||[]).forEach(n=>{
+    if(n.type==='group')fn(n); else if(n.type==='subgroup')eachGroup(n.children,fn); }); }
   WEEKS.forEach(w=>(w.categories.disease||[]).forEach(a=>{
     const mm=m[a.area]||(m[a.area]={});
-    (a.children||[]).forEach(g=>{ if(g.type==='group') mm[g.label]=(mm[g.label]||0)+countStories(g.children); });
+    eachGroup(a.children,g=>{ mm[g.label]=(mm[g.label]||0)+countStories(g.children); });
   }));
   return m;
 })();
+// Sort a disease-level node list. Works whether the list is subgroups (sort by
+// their fixed `order`, Other last, and recurse-sort each subgroup's indications)
+// or plain indication groups (most-common disease first, Misc. last).
 function sortDiseaseGroups(area,nodes){
+  if(nodes.some(n=>n.type==='subgroup')){
+    return nodes.slice().sort((a,b)=>{
+      const ao=a.label==='Other', bo=b.label==='Other';
+      if(ao!==bo)return ao?1:-1;
+      return (a.order!=null?a.order:99)-(b.order!=null?b.order:99);
+    });
+  }
   const rank=DISEASE_RANK[area]||{};
   return nodes.slice().sort((a,b)=>{
     const am=a.label==='Misc.', bm=b.label==='Misc.';
@@ -450,13 +495,30 @@ function sortDiseaseGroups(area,nodes){
   });
 }
 
+// Union of every area -> subgroup -> indication seen across all weeks, for the
+// persistent overview column. Subgroups keep their fixed order; indications carry
+// a total story count. Areas with no subgroup scheme store indications under ''.
+const OVERVIEW_TREE=(function(){
+  const areas={};
+  WEEKS.forEach(w=>(w.categories.disease||[]).forEach(a=>{
+    const A=areas[a.area]||(areas[a.area]={subs:{}, order:{}, hasSub:false, total:0});
+    function addInd(sg,g){ const S=A.subs[sg]||(A.subs[sg]={}); S[g.label]=(S[g.label]||0)+countStories(g.children); A.total+=countStories(g.children); }
+    (a.children||[]).forEach(node=>{
+      if(node.type==='subgroup'){ A.hasSub=true; A.order[node.label]=node.order;
+        (node.children||[]).forEach(g=>{ if(g.type==='group')addInd(node.label,g); }); }
+      else if(node.type==='group'){ addInd('', node); }
+    });
+  }));
+  return areas;
+})();
+
 const BIG_MKT=750; // $millions; a drug at/above this peak-sales figure is "interesting"
-const LEVEL_DEFAULT={area:true, grp:true, story:false}; // indications open, details closed
+const LEVEL_DEFAULT={area:true, sub:true, grp:true, story:false}; // areas/subgroups/indications open, details closed
 const state={cat:'disease', focus:Math.min(1,WEEKS.length-1), search:'',
   levelOpen:Object.assign({},LEVEL_DEFAULT), flip:new Set(), pin:null, panel:null, bigOnly:false};
 function passesFilter(n){ return !state.bigOnly || (n.mkt!=null && n.mkt>=BIG_MKT); }
 function isOpen(level,key){ return state.levelOpen[level] !== state.flip.has(key); }
-function levelPrefix(level){ return (level==='area'?'a':level==='grp'?'g':'s')+'|'; }
+function levelPrefix(level){ return (level==='area'?'a':level==='sub'?'b':level==='grp'?'g':'s')+'|'; }
 
 /* ---------- helpers ---------- */
 function setAccent(cat){
@@ -500,6 +562,8 @@ function layout(){
   const stage=document.getElementById('stage');
   const cols=track.children;
   if(!cols.length)return;
+  if(state.focus>cols.length-1) state.focus=cols.length-1;   // clamp (e.g. after switching category drops the overview col)
+  if(state.focus<0) state.focus=0;
   const stageW=stage.clientWidth - 52; // minus padding
   const cs=getComputedStyle(document.documentElement);
   let colW=parseFloat(cs.getPropertyValue('--col-w'));
@@ -515,6 +579,7 @@ function layout(){
 
 /* ---------- render tree ---------- */
 function keyArea(cat,area){return 'a|'+cat+'|'+area;}
+function keySub(cat,path){return 'b|'+cat+'|'+path;}
 function keyGrp(cat,path){return 'g|'+cat+'|'+path;}
 function keyStory(wid,cat,path){return 's|'+wid+'|'+cat+'|'+path;}
 
@@ -522,6 +587,23 @@ function renderNodes(nodes,cat,wid,pathPrefix,areaName,curDisease){
   const frag=document.createDocumentFragment();
   nodes.forEach((node,idx)=>{
     const path=pathPrefix+'>'+ (node.label||('#'+idx));
+    if(node.type==='subgroup'){
+      const bk=keySub(cat,path);
+      const sgEl=el('div','subgrp'+(isOpen('sub',bk)?' open':''));
+      const sh=el('button','subgrp-head');
+      sh.innerHTML=CHEV+'<span class="sglabel"></span><span class="n mono"></span>';
+      sh.querySelector('.sglabel').textContent=node.label;
+      sh.querySelector('.n').textContent=countStories(node.children);
+      sh.addEventListener('click',()=>flipLevel('sub',bk,sgEl));
+      sgEl.appendChild(sh);
+      const sb=el('div','subgrp-body');
+      const kids=cat==='disease'?sortDiseaseGroups(areaName,node.children):node.children;
+      sb.appendChild(renderNodes(kids,cat,wid,path,areaName,curDisease));
+      sgEl.appendChild(sb);
+      if(state.bigOnly && !sb.querySelector('.story')) return;
+      frag.appendChild(sgEl);
+      return;
+    }
     if(node.type==='group'){
       const gk=keyGrp(cat,path);
       const g=el('div','grp'+(isOpen('grp',gk)?' open':''));
@@ -611,6 +693,110 @@ function renderColumn(week){
   return col;
 }
 
+/* ---------- persistent overview / index column (always past the latest week) ---------- */
+// A compact, cross-week synthesis line for one indication: the frontier leader,
+// the advancing/setback balance, and the top rising & failing concepts.
+function frontierBlurb(area,disease){
+  const I=indicationInsight(area,disease);
+  if(!I) return null;
+  const out={};
+  if(I.leader){ const lb=leaderBits(I.leader), n=I.leader.node;
+    out.leader=lb.co+(n.efficacy?(' — '+n.efficacy):(lb.sub?(' — '+lb.sub):'')); }
+  out.adv=I.advancing; out.set=I.setbacks; out.n=I.rows.length;
+  const cons=conceptTrajectories(I.rows);
+  const rising=cons.find(c=>c.cls==='rising'||c.cls==='emerging');
+  const falling=cons.find(c=>c.cls==='falling'||c.cls==='struggling');
+  out.rising=rising?rising.key:null; out.falling=falling?falling.key:null;
+  out.contested=(cons.find(c=>c.cls==='contested')||{}).key||null;
+  return out;
+}
+function ovIndRow(area,disease,count){
+  const isMisc=disease==='Misc.';
+  const row=el('div','ov-ind'+(isMisc?' misc':''));
+  const head=el('button','ov-ind-head');
+  head.innerHTML='<span class="ov-ind-name"></span><span class="n mono"></span>';
+  head.querySelector('.ov-ind-name').textContent=disease;
+  head.querySelector('.n').textContent=count;
+  row.appendChild(head);
+  const b=frontierBlurb(area,disease);
+  if(b && !isMisc){
+    const blur=el('div','ov-blurb');
+    let h='';
+    if(b.leader)h+='<div class="ov-l"><span class="ov-tag">frontier</span><b>'+escapeHtml(b.leader)+'</b></div>';
+    h+='<div class="ov-l ov-bal"><span class="up">▲ '+b.adv+' advancing</span><span class="dn">▼ '+b.set+' setback'+(b.set===1?'':'s')+'</span><span class="ov-tot">'+b.n+' total</span></div>';
+    const trend=[];
+    if(b.rising)trend.push('<span class="tr up">↗ '+escapeHtml(b.rising)+'</span>');
+    if(b.contested)trend.push('<span class="tr ct">↔ '+escapeHtml(b.contested)+'</span>');
+    if(b.falling)trend.push('<span class="tr dn">↘ '+escapeHtml(b.falling)+'</span>');
+    if(trend.length)h+='<div class="ov-l ov-trend">'+trend.join('')+'</div>';
+    blur.innerHTML=h;
+    row.appendChild(blur);
+  }
+  if(!isMisc){ head.addEventListener('click',()=>openPanel(area,disease)); head.title='Open the deep-dive for '+disease; }
+  else head.style.cursor='default';
+  return row;
+}
+function renderOverview(){
+  const col=el('div','weekcol overview');
+  const head=el('div','col-head ov-head');
+  head.innerHTML='<span class="wlabel">All indications</span><span class="live idx">index</span><span class="wcount mono"></span>';
+  col.appendChild(head);
+  const body=el('div','ov-body');
+  // OVERVIEW_TREE is the source of truth, ordered by ORDER['disease']
+  const ord=(typeof ORDER!=='undefined'&&ORDER.disease)||[];
+  const areaNames=Object.keys(OVERVIEW_TREE).sort((a,b)=>{
+    let ia=ord.indexOf(a), ib=ord.indexOf(b); if(ia<0)ia=99; if(ib<0)ib=99;
+    if(ia!==ib)return ia-ib; return OVERVIEW_TREE[b].total-OVERVIEW_TREE[a].total;
+  });
+  let total=0;
+  areaNames.forEach(an=>{
+    const A=OVERVIEW_TREE[an];
+    const ak='ov-a|'+an;
+    const wrap=el('div','area'+(isOpen('area',ak)?' open':''));
+    const ah=el('button','area-head');
+    ah.innerHTML=CHEV+'<span class="tag"></span><span class="name"></span><span class="n mono"></span>';
+    ah.querySelector('.name').textContent=an;
+    let acount=0; Object.values(A.subs).forEach(S=>Object.values(S).forEach(c=>acount+=c)); total+=acount;
+    ah.querySelector('.n').textContent=acount;
+    ah.addEventListener('click',()=>flipLevel('area',ak,wrap));
+    wrap.appendChild(ah);
+    const ab=el('div','area-body');
+    const rankInds=(obj)=>Object.keys(obj).sort((x,y)=>{
+      const xm=x==='Misc.', ym=y==='Misc.'; if(xm!==ym)return xm?1:-1;
+      const d=(obj[y])-(obj[x]); if(d)return d; return x.localeCompare(y);
+    });
+    if(A.hasSub){
+      const sgNames=Object.keys(A.subs).sort((x,y)=>{
+        const xo=x==='Other', yo=y==='Other'; if(xo!==yo)return xo?1:-1;
+        return (A.order[x]!=null?A.order[x]:99)-(A.order[y]!=null?A.order[y]:99);
+      });
+      sgNames.forEach(sg=>{
+        const bk='ov-b|'+an+'|'+sg;
+        const sgEl=el('div','subgrp'+(isOpen('sub',bk)?' open':''));
+        const sh=el('button','subgrp-head');
+        sh.innerHTML=CHEV+'<span class="sglabel"></span><span class="n mono"></span>';
+        sh.querySelector('.sglabel').textContent=sg;
+        let sc=0; Object.values(A.subs[sg]).forEach(c=>sc+=c);
+        sh.querySelector('.n').textContent=sc;
+        sh.addEventListener('click',()=>flipLevel('sub',bk,sgEl));
+        sgEl.appendChild(sh);
+        const sb=el('div','subgrp-body');
+        rankInds(A.subs[sg]).forEach(d=>sb.appendChild(ovIndRow(an,d,A.subs[sg][d])));
+        sgEl.appendChild(sb);
+        ab.appendChild(sgEl);
+      });
+    } else {
+      const flat=A.subs['']||{};
+      rankInds(flat).forEach(d=>ab.appendChild(ovIndRow(an,d,flat[d])));
+    }
+    wrap.appendChild(ab);
+    body.appendChild(wrap);
+  });
+  head.querySelector('.wcount').textContent=total+' indications';
+  col.appendChild(body);
+  return col;
+}
+
 function renderCarousel(){
   setAccent(state.cat);
   document.getElementById('results').style.display='none';
@@ -619,6 +805,7 @@ function renderCarousel(){
   const track=document.getElementById('track');
   track.innerHTML='';
   WEEKS.forEach(w=>track.appendChild(renderColumn(w)));
+  if(state.cat==='disease') track.appendChild(renderOverview());  // persistent index past the latest week
   updateTglButtons();
   highlightPinned();
   showPinNote();
@@ -768,7 +955,8 @@ function flatten(){ // one-time flat index of every story across all weeks/cats
         walk(area.children,[area.area]);
         function walk(nodes,crumbs){
           nodes.forEach(node=>{
-            if(node.type==='group')walk(node.children,crumbs.concat(node.label));
+            if(node.type==='subgroup')walk(node.children,crumbs);  // subgroup not a crumb
+            else if(node.type==='group')walk(node.children,crumbs.concat(node.label));
             else{
               node._uid='u'+rows.length;           // stable id for click-to-navigate
               const detailText=collectText(node.details);
