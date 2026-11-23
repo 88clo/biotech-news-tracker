@@ -45,16 +45,18 @@ SUBGROUP_DEFS = {
     'Cancer': [
         ('Thoracic',        ['NSCLC', 'SCLC', 'Mesothelioma', 'Lung cancer']),
         ('GI',              ['Pancreatic cancer', 'Colorectal cancer', 'Esophageal cancer',
-                             'Gastric cancer', 'Biliary tract cancer', 'Hepatocellular carcinoma',
-                             'Gastroesophageal cancer', 'Anal cancer']),
+                             'Gastric cancer', 'Gastric/GEJ cancer', 'Biliary tract cancer',
+                             'Hepatocellular carcinoma', 'Liver cancer (HCC)',
+                             'Gastroesophageal cancer', 'Anal cancer', 'GI cancer (other)']),
         ('GU',              ['Prostate cancer', 'Bladder cancer', 'Renal cell carcinoma',
                              'Urothelial cancer', 'Testicular cancer']),
         ('Breast & gyn',    ['Breast cancer', 'Ovarian cancer', 'Cervical cancer',
                              'Endometrial cancer', 'Uterine cancer']),
         ('Skin',            ['Melanoma', 'Uveal melanoma', 'Merkel cell carcinoma',
-                             'Cutaneous squamous cell carcinoma', 'Basal cell carcinoma']),
+                             'Cutaneous squamous cell carcinoma', 'Basal cell carcinoma',
+                             'Skin cancer (CSCC/BCC)']),
         ('Heme malignancy', ['Multiple myeloma', 'Lymphoma', 'AML', 'ALL', 'CLL', 'CML',
-                             'Leukemia', 'Polycythemia vera', 'Myelofibrosis',
+                             'Leukemia', 'Leukemia (other)', 'Polycythemia vera', 'Myelofibrosis',
                              'Myelodysplastic syndrome', 'MDS']),
         ('Head & neck',     ['Head & neck cancer']),
         ('Neuro-oncology',  ['Glioblastoma', 'GBM', 'Brain cancer']),
@@ -307,6 +309,9 @@ _DP_RAW = {
     ('Sarcoma', r'(?i:sarcoma)'),
     ('Cancer cachexia', r'(?i:cachexia)'),
     ('Multi-cancer detection', r'MCED|(?i:multi.?cancer|early detection|surveillance)'),
+    # generic organ-group buckets (kept AFTER the specific indications so a specific
+    # match always wins; used mainly for an explicit "for <group>" headline clause)
+    ('GI cancer (other)', r'(?i:\bGI (?:cancers?|tumou?rs?|malignanc)|gastrointestinal (?:cancers?|tumou?rs?))'),
     ('Solid tumors (various)', r'(?i:solid tumou?rs?)'),
  ],
  'Cardio': [
@@ -452,9 +457,57 @@ _DP_RAW = {
 DISEASE_PATTERNS = {ta: [(name, re.compile(p)) for name, p in rows]
                     for ta, rows in _DP_RAW.items()}
 
-def infer_disease(ta, text):
-    for name, rx in DISEASE_PATTERNS.get(ta, []):
-        if rx.search(text):
+def infer_disease(ta, text, exclude=None):
+    """The disease a piece of text is about. When several are named (e.g. a
+    'for melanoma/lung/esophageal' pan-tumor headline), prefer the one mentioned
+    EARLIEST, which is almost always the primary indication; pattern-list order
+    only breaks ties. Scanning by text position (not list order) keeps a drug from
+    being filed under whichever indication happens to sit higher in the table."""
+    best = None  # (start_pos, list_index, name)
+    for idx, (name, rx) in enumerate(DISEASE_PATTERNS.get(ta, [])):
+        if exclude and name in exclude:
+            continue
+        m = rx.search(text)
+        if m and (best is None or m.start() < best[0]):
+            best = (m.start(), idx, name)
+    return best[2] if best else None
+
+# Generic "group" buckets that should be refined to a specific indication from the
+# details when possible -> maps the bucket to its subgroup so we only pull a MORE
+# specific disease from the SAME organ system (never a comparator from elsewhere).
+GENERIC_BUCKETS = {
+    'GI cancer (other)': ('Cancer', 'GI'),
+    'Solid tumors (various)': None,   # genuinely non-specific; don't refine
+}
+
+# The indication a headline explicitly states, from its "... for <X> ..." clause.
+# This is what the drug is FOR, and it must win over disease names that appear
+# elsewhere in the story (comparators, prior trials, other assets in the note).
+_FOR_RX = re.compile(r'\bfor\s+(?:the\s+treatment\s+of\s+|patients?\s+with\s+)?(.{2,70}?)(?=\s*[:;(]|$)', re.I)
+def indication_phrase(title):
+    m = _FOR_RX.search(title or '')
+    if not m:
+        return None
+    phrase = m.group(1).strip()
+    # drop obvious non-indication "for" clauses (deals, money, timing)
+    if re.search(r'(?i)\$|\bupfront\b|\bmilestone|\bbiobucks|\bstake\b|\bseries [A-E]\b|\bIPO\b', phrase):
+        return None
+    return phrase
+
+def refine_generic(ta, generic_name, detail_text):
+    """When the stated indication is a generic group (e.g. 'GI cancers'), pull the
+    specific disease from the details, but ONLY from within the same organ-system
+    subgroup so a comparator (e.g. an NSCLC trial) can never hijack it."""
+    spec = GENERIC_BUCKETS.get(generic_name)
+    if not spec:
+        return None
+    gta, subgroup = spec
+    for name, rx in DISEASE_PATTERNS.get(gta, []):
+        if name == generic_name:
+            continue
+        if subgroup_for(gta, name) != subgroup:
+            continue
+        if rx.search(detail_text or ''):
             return name
     return None
 
@@ -471,12 +524,28 @@ def is_group_label(label, nkids):
     return False
 
 def resolve_disease(ta, title, detail_text, chain):
-    """Canonical disease for one story: infer from title, then details, then fall
-    back to the nearest non-container grouping header, else 'Misc.'."""
+    """Canonical disease for one story. Priority, highest first:
+      1. the indication the headline explicitly states ('... for <X> ...'),
+         refined to a specific disease from the details when it's a generic group;
+      2. any disease named in the rest of the headline;
+      3. a disease named in the details (comparators live here, so this is last
+         among text sources);
+      4. the nearest non-container grouping header; else 'Misc.'.
+    Anchoring on the stated indication stops a comparator drug's disease (e.g. an
+    NSCLC trial cited inside a GI-cancer story) from hijacking the classification."""
+    # 1) the headline's explicit "for <indication>" clause
+    phrase = indication_phrase(title)
+    if phrase:
+        d = infer_disease(ta, phrase)
+        if d:
+            return refine_generic(ta, d, detail_text) or d
+    # 2) anywhere else in the headline
     d = infer_disease(ta, title)
     if d: return d
+    # 3) the details (last text source: comparators & prior trials live here)
     d = infer_disease(ta, detail_text)
     if d: return d
+    # 4) fall back to the nearest real grouping header, else Misc.
     for lab in reversed(chain):
         if lab.lower().strip().rstrip(':') in CONTAINERS:
             continue
@@ -1316,6 +1385,62 @@ def week_meta(path):
 # --------------------------------------------------------------------------
 # Main
 # --------------------------------------------------------------------------
+def validate(weeks):
+    """Non-fatal sanity checks that run on every build, so a new upload surfaces
+    classification problems instead of silently shipping them. Prints warnings to
+    stderr; never raises."""
+    warns = []
+    def plain(h):
+        return _html.unescape(re.sub(r'<[^>]+>', '', h or ''))
+    def story_text(n):
+        def det(ds):
+            s = ''
+            for d in ds or []:
+                s += ' ' + plain(d.get('html', '')) + det(d.get('children'))
+            return s
+        return plain(n.get('title', '')) + det(n.get('details'))
+    for w in weeks:
+        wl = w['meta']['label']
+        # map subgroup -> indication grouping & check every indication is placed
+        for area in w['categories'].get('disease', []):
+            ta = area['area']
+            for node in area['children']:
+                groups = node['children'] if node.get('type') == 'subgroup' else [node]
+                sg = node.get('label') if node.get('type') == 'subgroup' else None
+                for g in groups:
+                    if g.get('type') != 'group':
+                        continue
+                    dis = g['label']
+                    # a) subgroup placement must match the registered subgroup
+                    if ta in SUBGROUP_ORDER and dis != 'Misc.':
+                        want = subgroup_for(ta, dis)
+                        if sg is not None and want and sg != want and not (want == 'Other' and sg == 'Other'):
+                            warns.append(f'[{wl}] {ta}: "{dis}" placed in subgroup "{sg}" but maps to "{want}"')
+                    # b) the resolved disease should actually appear in the story text
+                    for s in g['children']:
+                        if s.get('type') != 'story' or dis in ('Misc.',):
+                            continue
+                        txt = story_text(s)
+                        # re-derive from the headline's stated indication; flag a mismatch
+                        title = plain(s.get('title', ''))
+                        ph = indication_phrase(title)
+                        if ph:
+                            stated = infer_disease(ta, ph)
+                            if stated:
+                                stated = refine_generic(ta, stated, txt) or stated
+                            if stated and stated != dis:
+                                warns.append(f'[{wl}] {ta}/{dis}: headline says "{ph}" -> {stated}; '
+                                             f'filed under {dis}: {title[:60]}')
+    if warns:
+        sys.stderr.write('\n[validate] %d classification warning(s):\n' % len(warns))
+        for ln in warns[:40]:
+            sys.stderr.write('  ' + ln + '\n')
+        if len(warns) > 40:
+            sys.stderr.write('  ... and %d more\n' % (len(warns) - 40))
+    else:
+        sys.stderr.write('[validate] no classification warnings\n')
+    return warns
+
 def build(paths):
     weeks = [parse_week(p, week_meta(p)) for p in paths]
     weeks.sort(key=lambda w: w['meta']['sort'])
@@ -1323,6 +1448,7 @@ def build(paths):
     for w in weeks:
         for area in w['categories'].get('disease', []):
             apply_subgroups(area)
+    validate(weeks)
     return {'weeks': weeks, 'generated': True}
 
 def main():
