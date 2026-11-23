@@ -67,6 +67,11 @@ header.top{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--p
 .wk small{font-size:10px;color:var(--ink-faint)}
 .wk.focus{border-color:var(--accent);background:var(--accent-bg);color:var(--ink)}
 .wk:hover{border-color:var(--accent)}
+.wk.ov-tab{margin-left:8px;border-style:dashed;border-color:var(--ink-faint);background:var(--paper);position:relative}
+.wk.ov-tab::before{content:"";position:absolute;left:-8px;top:4px;bottom:4px;width:1px;background:var(--line)}
+.wk.ov-tab b{color:var(--ink)}
+.wk.ov-tab.focus{border-style:solid;border-color:var(--ink);background:var(--ink);}
+.wk.ov-tab.focus b,.wk.ov-tab.focus small{color:#fff}
 .spacer{flex:1}
 .ctrl-btn{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:7px 12px;font-size:12.5px;
   font-weight:600;color:var(--ink-soft);display:inline-flex;align-items:center;gap:6px}
@@ -904,7 +909,8 @@ function alignPinned(smooth){
   window.scrollTo({top:Math.max(0,ref-headerOffset()), behavior: smooth?'smooth':'auto'});
 }
 function navTo(i){
-  if(i<0||i>=WEEKS.length||i===state.focus)return;
+  const nCols=document.getElementById('track').children.length;  // weeks + overview (disease view)
+  if(i<0||i>=nCols||i===state.focus)return;
   state.focus=i; layout();
   // No re-align here: alignPinned already shifted every week (not just the
   // visible ones) onto the same row, so switching weeks needs no vertical move.
@@ -943,6 +949,17 @@ function renderTimeline(){
     b.addEventListener('click',()=>navTo(i));
     tl.appendChild(b);
   });
+  // the persistent overview is the column just past the last week (disease view only)
+  if(state.cat==='disease'){
+    const oi=WEEKS.length;
+    const ind=OVERVIEW_TREE?Object.values(OVERVIEW_TREE).reduce((a,A)=>{
+      let c=0; Object.values(A.subs).forEach(S=>c+=Object.keys(S).length); return a+c; },0):0;
+    const b=el('button','wk ov-tab'+(state.focus===oi?' focus':''));
+    b.innerHTML='<b>All indications</b><small></small>';
+    b.querySelector('small').textContent=ind+' indications';
+    b.addEventListener('click',()=>navTo(oi));
+    tl.appendChild(b);
+  }
 }
 
 /* ---------- search ---------- */
