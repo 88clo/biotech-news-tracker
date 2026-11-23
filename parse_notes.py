@@ -640,6 +640,120 @@ def market_size(blob):
         lab = '~' + lab      # tilde marks a Claude-computed (not author-written) figure
     return (musd, lab)
 
+# --------------------------------------------------------------------------
+# Standardized market-size ESTIMATE for assets the notes left unquantified.
+# Same shape as the authors' own math (addressable patients x peak share x net
+# annual price), but driven by a built-in epidemiology/pricing reference so every
+# drug gets a comparable figure. Flagged separately ('est') so it's never
+# confused with a doc-provided or doc-derived number.
+# Values are rough, defensible US peak-sales order-of-magnitude anchors:
+#   (addressable drug-treated US patients / yr, net annual price $)
+# --------------------------------------------------------------------------
+MARKET_REF = {
+    # ---- oncology (incident, drug-treated) ----
+    'nsclc': (85000, 160000), 'sclc': (20000, 130000), 'mesothelioma': (3000, 150000),
+    'breast cancer': (90000, 130000), 'prostate cancer': (90000, 110000),
+    'colorectal cancer': (90000, 130000), 'pancreatic cancer': (50000, 150000),
+    'esophageal cancer': (30000, 140000), 'gastric/gej cancer': (27000, 150000),
+    'gastric cancer': (27000, 150000), 'biliary tract cancer': (12000, 160000),
+    'hepatocellular carcinoma': (30000, 150000), 'melanoma': (60000, 180000),
+    'uveal melanoma': (2500, 180000), 'bladder cancer': (60000, 140000),
+    'renal cell carcinoma': (45000, 170000), 'head & neck cancer': (40000, 140000),
+    'ovarian cancer': (20000, 150000), 'cervical cancer': (13000, 130000),
+    'endometrial cancer': (30000, 130000), 'glioblastoma': (13000, 150000),
+    'multiple myeloma': (35000, 200000), 'lymphoma': (60000, 180000),
+    'aml': (20000, 180000), 'leukemia': (40000, 160000), 'leukemia (other)': (40000, 160000),
+    'cll': (25000, 150000), 'polycythemia vera': (60000, 60000),
+    'myelofibrosis': (18000, 150000), 'neuroendocrine tumors': (20000, 150000),
+    'sarcoma': (15000, 150000), 'skin cancer (cscc/bcc)': (120000, 90000),
+    'solid tumors (various)': (60000, 150000),
+    # ---- cardiometabolic ----
+    'obesity': (8000000, 5500), 'diabetes': (6000000, 4000), 'mash/nash': (1500000, 15000),
+    'dyslipidemia': (6000000, 5000), 'atherosclerosis / lipids': (6000000, 5000),
+    'hypertension': (10000000, 1800), 'heart failure': (3000000, 6000),
+    'cardiomyopathy': (150000, 90000), 'stroke': (500000, 8000),
+    'pulmonary hypertension': (40000, 90000),
+    # ---- immunology / inflammation ----
+    'atopic dermatitis': (900000, 35000), 'asthma': (1000000, 25000),
+    'copd': (1200000, 20000), 'bronchiectasis': (300000, 30000),
+    'rheumatoid arthritis': (1000000, 40000), 'lupus / lupus nephritis': (200000, 45000),
+    'myositis / ibm': (40000, 60000), 'vasculitis (anca)': (40000, 60000),
+    'ibd / crohn’s': (700000, 45000), 'iga nephropathy': (120000, 60000),
+    'hidradenitis (hs)': (150000, 35000), 'multiple sclerosis': (300000, 70000),
+    'thyroid eye disease': (60000, 200000),
+    # ---- neuro / psych ----
+    'alzheimer’s': (2000000, 28000), "alzheimer's": (2000000, 28000),
+    'parkinson’s': (800000, 20000), "parkinson's": (800000, 20000),
+    'als': (25000, 150000), 'huntington': (30000, 90000), 'epilepsy': (1200000, 12000),
+    'narcolepsy': (165000, 18000), 'migraine': (4000000, 8000),
+    'depression / trd': (2000000, 10000), 'schizophrenia': (1500000, 15000),
+    'bipolar': (1500000, 10000), 'anxiety / gad': (3000000, 6000),
+    # ---- rare / muscle / blood ----
+    'duchenne (dmd)': (12000, 400000), 'spinal muscular atrophy': (10000, 300000),
+    'myotonic dystrophy': (40000, 90000), 'fshd': (16000, 90000),
+    'hemophilia / bleeding': (20000, 500000), 'sickle cell': (70000, 150000),
+    'fabry disease': (5000, 350000), 'pompe disease': (3500, 400000),
+    'lysosomal / mps': (5000, 400000), 'enpp1 deficiency': (600, 400000),
+    'prader-willi': (18000, 60000),
+    # ---- infectious ----
+    'hiv': (1000000, 25000), 'hepatitis': (2500000, 25000), 'covid-19': (3000000, 1500),
+    'influenza': (5000000, 800), 'rsv': (3000000, 300),
+}
+# per-therapeutic-area fallback when a specific indication isn't in the table
+AREA_REF = {
+    'Cancer': (40000, 150000), 'Immuno': (400000, 45000), 'Metabolic': (400000, 10000),
+    'Cardio': (2000000, 4000), 'Neuro': (500000, 30000), 'Psych': (1500000, 12000),
+    'Infectious': (800000, 6000), 'Muscle': (12000, 300000), 'Blood': (30000, 300000),
+    'Eye': (300000, 15000), 'Kidney': (150000, 60000), 'Liver': (800000, 20000),
+    'Lung': (800000, 25000), 'Skin': (500000, 20000), 'Bone': (300000, 25000),
+    'Pain': (3000000, 5000), 'Respiratory': (800000, 25000), "Women's health": (2000000, 4000),
+}
+DEFAULT_REF = (60000, 60000)
+# net-price multiplier by modality (premium one-time / cell-gene vs chronic small mol)
+PRICE_MULT = {
+    'Gene therapy': 1.6, 'Base editing': 1.6, 'CRISPR/editing': 1.5, 'CAR-T': 1.4,
+    'TCR-T': 1.4, 'Cell therapy': 1.4, 'Enzyme/ERT': 1.4, 'Radiopharma': 1.2,
+    'ADC': 1.2, 'Bispecific Ab': 1.15, 'T-cell engager': 1.2, 'siRNA/RNAi': 1.1,
+    'ASO/antisense': 1.1, 'Small molecule': 0.9,
+}
+PEAK_SHARE = 0.18   # a credible single-asset peak share of its addressable pool
+# indications where simple epi x price doesn't model the economics -> no estimate
+_NO_EST_DISEASE = {'multi-cancer detection', 'misc.', 'policy & surveillance',
+                   'vaccines', 'rfk jr.', 'solid tumors (various)',
+                   'ebola', 'measles'}   # outbreak/stockpile, not a commercial market
+# modalities that aren't priced as a chronic per-patient therapeutic -> no estimate
+# (diagnostics, devices, and vaccines have very different economics; a pure
+# discovery/platform story has no modality and is left as an unsized "concept")
+_NO_EST_MODALITY = {'Diagnostic', 'BCI/device', 'Vaccine'}
+
+def estimate_market(ta, disease, modality):
+    """A standardized peak-sales estimate (value_$M, label, derivation) for a
+    concrete therapeutic the notes didn't size, or None when it can't/shouldn't be
+    modeled (unspecified indication, platform/discovery story, or non-drug economics)."""
+    if not disease or not modality or modality in _NO_EST_MODALITY:
+        return None
+    dl = disease.strip().lower()
+    if dl in _NO_EST_DISEASE:
+        return None
+    ref = MARKET_REF.get(dl) or AREA_REF.get(ta) or DEFAULT_REF
+    pts, price = ref
+    mult = PRICE_MULT.get(modality, 1.0)
+    musd = pts * PEAK_SHARE * price * mult / 1e6
+    if musd <= 0:
+        return None
+    # round to 2 significant figures so estimates read as estimates, not false precision
+    import math
+    digits = int(math.floor(math.log10(musd)))
+    musd = round(musd, -(digits - 1)) if digits >= 1 else round(musd, 1)
+    label = '~' + _fmt_musd(musd) + ' est'
+    ppl = (('%.0f' % (pts / 1000.0)) + 'K') if pts < 1e6 else (('%.1f' % (pts / 1e6)).rstrip('0').rstrip('.') + 'M')
+    pr = ('$%.1fM' % (price / 1e6)).replace('.0M', 'M') if price >= 1e6 else ('$%dK' % round(price / 1e3))
+    deriv = ('Model estimate: ' + ppl + ' addressable US pts × ' + ('%d' % (PEAK_SHARE * 100)) +
+             '% peak share × ' + pr + '/yr net' +
+             (' × ' + ('%.2g' % mult) + ' (' + modality + ')' if mult != 1.0 and modality else '') +
+             ' ≈ ' + _fmt_musd(musd))
+    return (musd, label, deriv)
+
 # -------- asset / mechanism / development-stage extraction --------
 # Modality (drug class). First match wins, so order specific -> generic.
 _MODALITY = [
@@ -947,6 +1061,11 @@ def parse_week(path, meta):
     cur_area = None
     # buffer of (rel_level, node) items for the current area to build sub-tree
     raw_nodes = []
+    # True while the current top-level story was opened by a PARAGRAPH headline
+    # (as in the "reorganized" notes). In that mode the bullets that follow are the
+    # story's details and must nest one level deeper, instead of each becoming its
+    # own sibling story.
+    para_anchor = False
 
     def flush_area():
         nonlocal raw_nodes, cur_area
@@ -1014,9 +1133,17 @@ def parse_week(path, meta):
             'details': [to_detail(k) for k in node['kids']],
         }
 
-    def make_story(node):
+    def make_story(node, ta=None, disease=None):
         f = _enrich(node, node['label'])
         f.update({'type': 'story', 'title': node['title_html'], 'label': node['label']})
+        # Standardized estimate for a real asset the notes left unsized, so every
+        # drug carries a comparable market figure (clearly flagged as an estimate).
+        if f['mkt'] is None and f['asset']:
+            est = estimate_market(ta, disease, f['modality'])
+            if est:
+                val, lab, deriv = est
+                f['mkt'] = val; f['mktLabel'] = lab; f['mstatus'] = 'est'; f['mktEst'] = deriv
+                f['interesting'] = (val >= INTERESTING_MUSD) or f['interesting']
         return f
 
     def regroup_disease(ta_name, roots):
@@ -1030,8 +1157,8 @@ def parse_week(path, meta):
                 if n['kids'] and is_group_label(n['label'], len(n['kids'])):
                     walk(n['kids'], chain + [n['label']])
                 else:
-                    add(resolve_disease(ta_name, n['label'], raw_detail_text(n), chain),
-                        make_story(n))
+                    dis = resolve_disease(ta_name, n['label'], raw_detail_text(n), chain)
+                    add(dis, make_story(n, ta_name, dis))
         walk(roots, [])
         ordered = sorted(order, key=lambda d: (1 if d == 'Misc.' else 0,
                                                -len(buckets[d]), d.lower()))
@@ -1076,11 +1203,11 @@ def parse_week(path, meta):
             plain = label_of(raw)
             low = plain.lower().strip().rstrip(':')
             if is_underlined_header(raw) and low in BUCKET_MARKERS:
-                flush_area(); cur_area = None
+                flush_area(); cur_area = None; para_anchor = False
                 cur_cat = BUCKET_MARKERS[low]
                 i += 1; continue
             if low in BUCKET_MARKERS:
-                flush_area(); cur_area = None
+                flush_area(); cur_area = None; para_anchor = False
                 cur_cat = BUCKET_MARKERS[low]
                 i += 1; continue
             # Italic-underline sub-divider (e.g. "Cancer GI") inside an existing
@@ -1092,20 +1219,25 @@ def parse_week(path, meta):
                 i += 1; continue
             # area heading (known -> fixes category; unknown plain heading -> new area in cur_cat)
             if low in AREA_CATEGORY:
-                flush_area()
+                flush_area(); para_anchor = False
                 cur_cat = AREA_CATEGORY[low]
                 cur_area = get_area(cur_cat, plain)
                 cur_area['_base'] = -1
-            else:
+            elif word_count(plain) <= 5 and not re.search(r'\d', plain):
                 # short-ish plain heading with no digits -> treat as a new area.
                 # Unknown named buckets are (in these notes) business/theme items,
                 # so default them to theme rather than the previous category.
-                if word_count(plain) <= 5 and not re.search(r'\d', plain):
-                    flush_area()
-                    cur_cat = 'theme'
-                    cur_area = get_area(cur_cat, plain)
-                    cur_area['_base'] = -1
-                # else ignore stray paragraph
+                flush_area(); para_anchor = False
+                cur_cat = 'theme'
+                cur_area = get_area(cur_cat, plain)
+                cur_area['_base'] = -1
+            elif cur_area is not None:
+                # A longer paragraph inside an area is a STORY HEADLINE (the
+                # "reorganized" note style). Push it as a top-level story; the
+                # bullets that follow become its details (para_anchor mode).
+                raw_nodes.append((0, make_node(raw)))
+                para_anchor = True
+            # else: stray paragraph before any area -> ignore
             i += 1; continue
 
         # kind == 'bullet'
@@ -1123,7 +1255,7 @@ def parse_week(path, meta):
             new_cat = AREA_CATEGORY.get(low, cur_cat)
             # only treat as an area if it looks like an area label (short, group-ish)
             if low in AREA_CATEGORY or (word_count(plain) <= 5 and not STORY_MARKERS.search(plain)):
-                flush_area()
+                flush_area(); para_anchor = False
                 cur_cat = new_cat
                 cur_area = get_area(cur_cat, plain)
                 cur_area['_base'] = 0
@@ -1133,9 +1265,14 @@ def parse_week(path, meta):
             # bullets before any area -> stash under an implicit area for the category
             cur_area = get_area(cur_cat, _default_area(cur_cat))
             cur_area['_base'] = 0
-        rel = level - (cur_area.get('_base', -1) + 1)
-        if rel < 0:
-            rel = 0
+        if para_anchor:
+            # bullets after a paragraph headline are that story's details: one
+            # level deeper than the headline (rel 0), so level-0 -> rel 1, etc.
+            rel = level + 1
+        else:
+            rel = level - (cur_area.get('_base', -1) + 1)
+            if rel < 0:
+                rel = 0
         raw_nodes.append((rel, make_node(raw)))
         i += 1
 

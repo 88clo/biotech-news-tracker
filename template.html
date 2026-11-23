@@ -188,6 +188,10 @@ header.top{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--p
   box-shadow:0 1px 1px rgba(16,90,50,.18)}
 .mktcap.small{color:#5b6270;background:#eceef1;border-color:#dfe2e8;box-shadow:none;font-weight:600}
 .mktcap.nosize{color:#8a5a12;background:#f8edd6;border-color:#ecd9b0;box-shadow:none;font-weight:600}
+/* estimated (model) figures: same shape, hollow + dashed so they read as estimates */
+.mktcap.est{background:transparent;border-style:dashed;box-shadow:none;cursor:help}
+.mktcap.est.big{color:#0f7d43;border-color:#12924e}
+.mktcap.est.small{color:#5b6270;border-color:#c7ccd4;background:transparent}
 .detail{display:none;margin:4px 0 10px 26px}
 .story.open .detail{display:block}
 .detail ul{margin:3px 0;padding-left:16px}
@@ -552,7 +556,9 @@ function withCompany(titleHtml, company, cls){
 // drug/concept. Appends to the given title element.
 function appendMkt(el_, node){
   if(node.mkt!=null && node.mktLabel){
-    const c=el('span','mktcap'+(node.mkt>=BIG_MKT?' big':' small'), node.mktLabel);
+    const est=node.mstatus==='est';
+    const c=el('span','mktcap'+(node.mkt>=BIG_MKT?' big':' small')+(est?' est':''), node.mktLabel);
+    if(est && node.mktEst) c.title=node.mktEst;   // show the model derivation on hover
     el_.appendChild(c);
   } else if(node.mstatus==='unquant'){
     const c=el('span','mktcap nosize','◇ no size'); el_.appendChild(c);
