@@ -294,7 +294,11 @@ body.has-panel .footer{padding-right:var(--panel-w)}
 .sp-con-ev li{font-size:11px;line-height:1.45;color:var(--ink-soft);margin:2px 0;display:flex;gap:6px}
 .sp-con-ev .mk{flex:0 0 auto;font-weight:700}
 .sp-con-ev .mk.u{color:#2C7A4B}.sp-con-ev .mk.d{color:#b3261e}.sp-con-ev .mk.z{color:var(--ink-faint)}
-.sp-con-ev .ew{flex:0 0 auto;font-family:var(--mono);font-size:9px;color:var(--ink-faint)}
+.sp-con-ev .ew{flex:0 0 auto;font-family:var(--mono);font-size:9px;color:var(--ink-faint);margin-top:1px}
+.sp-con-ev .et{flex:1;min-width:0}
+.sp-con-ev .et b{color:var(--ink);font-weight:600}
+.nk{font-family:var(--mono);font-size:9px;padding:0 4px;border-radius:3px}
+.nk.good{color:#1d6b3f;background:#e6f1ea}.nk.bad{color:#b3261e;background:#fbe9e7}.nk.neu{color:#5b6270;background:#eceef1}
 /* frontier + timeline compact rows */
 .sp-row{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line-soft)}
 .sp-row:last-child{border-bottom:0}
@@ -307,6 +311,22 @@ body.has-panel .footer{padding-right:var(--panel-w)}
 .sp-mc{font-family:var(--mono);font-size:8.5px;font-weight:600;padding:1px 5px;border-radius:4px;background:#eceef1;color:#5b6270;border:1px solid #e0e2e8}
 .sp-mc.st{background:#eef2ff;color:#3d4a8a;border-color:#dde3fb}
 .sp-mc.mk{background:#12924e;color:#fff;border-color:#0f7d43}
+.sp-mc.nkk.good{background:#e6f1ea;color:#1d6b3f;border-color:#cfe6d8}
+.sp-mc.nkk.bad{background:#fbe9e7;color:#b3261e;border-color:#f0cfca}
+.sp-mc.nkk.neu{background:#eef2ff;color:#3d4a8a;border-color:#dde3fb}
+.sp-mc.seg.line{background:#eaf3fb;color:#2b6796;border-color:#d4e6f4}
+.sp-mc.seg.histo{background:#f3ecfb;color:#5b3aa6;border-color:#e6d9f6}
+.sp-mc.seg.bio{background:#fff4e6;color:#9a5a12;border-color:#f0ddbf}
+.sp-mc.seg.white{background:var(--panel);color:#5b3aa6;border:1px dashed #b79be0}
+/* frontier synthesis + coverage */
+.sp-syn{font-size:11px;line-height:1.55;color:var(--ink-soft);margin-bottom:9px}
+.sp-syn b{color:var(--ink)}
+.sp-cov{margin-top:10px;background:var(--paper);border:1px solid var(--line);border-radius:9px;padding:9px 11px}
+.sp-cov-h{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-faint);margin-bottom:4px}
+.sp-cov-h.ws{color:#5b3aa6;margin-top:9px}
+.sp-cov-l{font-size:11px;color:var(--ink-soft);line-height:1.6}
+.sp-cov-ws{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px}
+.sp-dir.subpop{border-left-color:#2b6796}.sp-dir.rescue{border-left-color:#9a5a12}
 /* breakthrough */
 .sp-ws{font-size:11px;color:var(--ink-soft);line-height:1.7;margin-bottom:10px}
 .sp-ws b{color:var(--ink)}
@@ -955,17 +975,48 @@ function mechSignal(){
   });
   _MECH={mod,tgt}; return _MECH;
 }
+function segChips(n){
+  const sg=n.seg||{line:[],histo:[],bio:[]}, out=[];
+  (sg.line||[]).forEach(x=>out.push('<span class="sp-mc seg line">'+escapeHtml(x)+'</span>'));
+  (sg.histo||[]).forEach(x=>out.push('<span class="sp-mc seg histo">'+escapeHtml(x)+'</span>'));
+  (sg.bio||[]).slice(0,2).forEach(x=>out.push('<span class="sp-mc seg bio">'+escapeHtml(x)+'</span>'));
+  return out.join('');
+}
 function spRow(r,opts){
   const n=r.node, row=el('div','sp-row');
   const wk=el('span','sp-row-wk'); wk.textContent=r.week.meta.short||r.week.meta.label; row.appendChild(wk);
   const main=el('div','sp-row-main');
   const t=el('div','sp-row-t'+(n.neg?' neg':'')); t.innerHTML=withCompany(n.title,n.company,coClass(n)); main.appendChild(t);
   if(opts&&opts.meta){ const m=el('div','sp-row-m');
-    let h=''; if(n.stage)h+='<span class="sp-mc st">'+escapeHtml(n.stage)+'</span>';
+    let h='<span class="sp-mc nkk '+newsKindClass(n.newsKind)+'">'+escapeHtml(stageNews(n))+'</span>';
     if(n.modality)h+='<span class="sp-mc">'+escapeHtml(n.modality)+'</span>';
     if(n.mkt!=null)h+='<span class="sp-mc mk">'+escapeHtml(n.mktLabel)+'</span>';
+    h+=segChips(n);
     m.innerHTML=h; main.appendChild(m); }
   row.appendChild(main); return row;
+}
+// segment coverage + whitespace across all assets in an indication
+function segmentCoverage(rows){
+  const assets=rows.filter(r=>r.node.asset);
+  const cnt=(dim,val)=>assets.filter(r=>(r.node.seg&&r.node.seg[dim]||[]).includes(val)).length;
+  const histo={sq:cnt('histo','squamous'), nsq:cnt('histo','non-squamous')};
+  const line={early:cnt('line','early/adjuvant'),'1L':cnt('line','1L'),late:cnt('line','2L+/later')};
+  const bioSel=assets.filter(r=>(r.node.seg&&r.node.seg.bio||[]).length>0).length;
+  const markers={}; assets.forEach(r=>(r.node.seg&&r.node.seg.bio||[]).forEach(b=>markers[b]=(markers[b]||0)+1));
+  const topMarkers=Object.entries(markers).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  // whitespace heuristics
+  const ws=[];
+  const histoActive=histo.sq+histo.nsq;
+  if(histoActive>=2){ const mx=Math.max(histo.sq,histo.nsq);
+    if(histo.sq===0) ws.push('squamous (no assets)');
+    else if(histo.sq<=mx*0.34) ws.push('squamous (only '+histo.sq+')');
+    if(histo.nsq===0 && histo.sq>0) ws.push('non-squamous (no assets)'); }
+  const lineActive=line.early+line['1L']+line.late;
+  if(lineActive>=2){
+    if(line.late===0) ws.push('2L+/later lines');
+    if(line.early===0 && line['1L']>0) ws.push('adjuvant / earlier-stage'); }
+  if(bioSel>=Math.max(2, assets.length*0.5)) ws.push('biomarker-unselected / wild-type');
+  return {assets:assets.length,histo,line,bioSel,topMarkers,ws};
 }
 function section(t,sub){
   const s=el('div','sp-sec');
@@ -1029,26 +1080,50 @@ function renderPanel(area,disease){
       box.appendChild(h);
       const ul=el('ul','sp-con-ev');
       c.items.slice(0,4).forEach(r=>{ const n=r.node;
-        const mk=n.neg?'d':(n.pos?'u':'z'), sym=n.neg?'▼':(n.pos?'▲':'•');
+        const win=assetWin(n); const mk=n.neg?'d':(win?'u':'z'), sym=n.neg?'▼':(win?'▲':'•');
+        const nkc=newsKindClass(n.newsKind);
         const li=el('li');
         li.innerHTML='<span class="mk '+mk+'">'+sym+'</span><span class="ew">'+escapeHtml(r.week.meta.short||'')+'</span>'+
-          '<span>'+escapeHtml((n.company?n.company+' — ':'')+shortDrug(n))+'</span>';
+          '<span class="et"><b>'+escapeHtml(n.company||stripTags(n.title).slice(0,18))+'</b> '+
+          '<span class="nk '+nkc+'">'+escapeHtml(stageNews(n))+'</span></span>';
         ul.appendChild(li); });
       box.appendChild(ul); s.appendChild(box);
     });
     body.appendChild(s);
   }
 
-  // frontier
+  // frontier + coverage / whitespace
   const front=rows.filter(r=>!r.node.neg).sort((a,b)=>frontierScore(b)-frontierScore(a)).slice(0,5);
   if(front.length){
-    const s=section('Frontier · best-in-disease','the leaders any new drug must beat');
-    front.forEach(r=>s.appendChild(spRow(r,{meta:true}))); body.appendChild(s);
+    const s=section('Frontier · best-in-disease','the standard to beat — and where it leaves gaps');
+    // synthesis: what the frontier actually is
+    const topMod=tally(rows.filter(r=>r.node.asset),'modality')[0];
+    const adv=front.filter(r=>(r.node.stageRank||0)>=5).length;
+    const syn=el('div','sp-syn');
+    syn.innerHTML='The leading edge is '+(topMod?('<b>'+escapeHtml(topMod[0])+'</b>'):'a mix of modalities')+
+      (adv?(' with <b>'+adv+'</b> approved/registration-stage asset'+(adv>1?'s':'')):'')+
+      '. Each leader below shows its line, histology and biomarker population — the slots a new drug must either beat or route around.';
+    s.appendChild(syn);
+    front.forEach(r=>s.appendChild(spRow(r,{meta:true})));
+    // coverage + whitespace
+    const cov=segmentCoverage(rows);
+    const cv=el('div','sp-cov');
+    const covBits=[];
+    if(cov.histo.sq+cov.histo.nsq>0) covBits.push('Histology: non-sq '+cov.histo.nsq+' · squamous '+cov.histo.sq);
+    if(cov.line.early+cov.line['1L']+cov.line.late>0) covBits.push('Line: 1L '+cov.line['1L']+' · 2L+ '+cov.line.late+(cov.line.early?' · adj '+cov.line.early:''));
+    if(cov.topMarkers.length) covBits.push('Biomarker-selected '+cov.bioSel+'/'+cov.assets+' ('+cov.topMarkers.slice(0,4).map(([m,c])=>m+(c>1?'×'+c:'')).join(', ')+')');
+    cv.innerHTML='<div class="sp-cov-h">Where the frontier plays</div>'+covBits.map(b=>'<div class="sp-cov-l">'+b+'</div>').join('');
+    if(cov.ws.length){
+      cv.innerHTML+='<div class="sp-cov-h ws">Whitespace the frontier leaves</div>'+
+        '<div class="sp-cov-ws">'+cov.ws.map(w=>'<span class="sp-mc seg white">'+escapeHtml(w)+'</span>').join('')+'</div>';
+    }
+    s.appendChild(cv);
+    body.appendChild(s);
   }
 
   // breakthrough directions — themes, not "combine two winners"
-  const s3=section('Breakthrough directions','strategic angles for a step-change drug — themes, not me-toos');
-  const dirs=breakthroughDirections(area,disease,rows,cons,front[0],I);
+  const s3=section('Breakthrough directions','a path to a best-in-disease drug for an unmet need the frontier ignores');
+  const dirs=breakthroughDirections(area,disease,rows,cons,front[0],I,segmentCoverage(rows));
   dirs.forEach(d=>{
     const box=el('div','sp-dir '+d.cls);
     box.innerHTML='<div class="sp-dir-h"><span class="sp-dir-t">'+escapeHtml(d.title)+'</span></div>'+
@@ -1064,48 +1139,86 @@ function renderPanel(area,disease){
   body.scrollTop=0; sp.scrollTop=0;
 }
 
-// Compute strategic breakthrough angles from cross-indication themes.
-function breakthroughDirections(area,disease,rows,cons,leader,I){
+// Extract why a failed asset failed, and whether that cause looks solvable
+// (an engineering/selectivity problem) vs a target/biology invalidation.
+const _SOLVABLE_RX=/(off-?target|selectivit|toxicit|\btox\b|tolerab|safety|liability|\bPK\b|exposure|half-life|delivery|formulation|CNS penetrat|narrow therapeutic)/i;
+const _TARGETRISK_RX=/(did ?n[o’']?t meet|missed? (?:the )?(?:primary|endpoint)|failed (?:to meet|its|the)|lack of efficacy|no (?:clinical )?benefit|futility|not efficacious)/i;
+function failureReason(n){
+  const b=stripTags(n.title)+' '+(n.details?collectText(n.details):'');
+  const due=b.match(/due to ([^.,;:]{4,46})/i);
+  let reason=due?due[1].trim():'';
+  const sol=_SOLVABLE_RX.test(b), risk=_TARGETRISK_RX.test(b);
+  if(!reason){ const m=b.match(_SOLVABLE_RX)||b.match(_TARGETRISK_RX); reason=m?m[0]:''; }
+  return {reason, solvable: sol && !risk};
+}
+// Strategic breakthrough angles grounded in frontier gaps, failures and transfer.
+function breakthroughDirections(area,disease,rows,cons,leader,I,cov){
   const dirs=[];
   const sig=mechSignal();
   const present=new Set(rows.map(r=>r.node.modality).filter(Boolean));
-  // 1) Transfer a distinct PLATFORM proven ELSEWHERE but untried here (cross-indication insight)
+  // 1) Serve the underserved subpopulation (frontier whitespace)
+  if(cov && cov.ws.length){
+    const seg=cov.ws[0];
+    const bioNote=cov.bioSel>=Math.max(2,cov.assets*0.5)?' Most assets are biomarker-selected, so a drug for the molecularly-unselected majority is a large, open population.':'';
+    dirs.push({cls:'subpop',title:'Own an underserved subpopulation',
+      body:'The frontier concentrates elsewhere and leaves <b>'+escapeHtml(cov.ws.slice(0,2).join(' and '))+'</b> thin. '+
+        'A drug <b>purpose-built for '+escapeHtml(seg.replace(/ \(.*/,''))+'</b> — not a subgroup of a broad trial — could own a real unmet need in '+escapeHtml(disease)+'.'+bioNote});
+  }
+  // 2) Revisit a target that failed for a SOLVABLE reason (valid target, wrong execution)
+  const rescue=rows.filter(r=>r.node.neg && r.node.target).map(r=>{
+    const f=failureReason(r.node); return f.solvable?{t:r.node.target,mod:r.node.modality,reason:f.reason,co:r.node.company}:null;
+  }).filter(Boolean)[0];
+  if(rescue){
+    const cause=rescue.reason
+      ? (' stalled here on <b>'+escapeHtml(rescue.reason)+'</b> — an engineering/selectivity problem, not proof the target is wrong.')
+      : (' stalled here for execution reasons, not target invalidation.');
+    dirs.push({cls:'rescue',title:'Rescue a target that failed on execution',
+      body:'<b>'+escapeHtml(rescue.t)+'</b>'+(rescue.mod?(' ('+escapeHtml(rescue.mod)+')'):'')+cause+
+        ' A cleaner, better-delivered or more selective agent against '+escapeHtml(rescue.t)+' could still be best-in-class.'});
+  }
+  // 3) Transfer a distinct PLATFORM proven ELSEWHERE but untried here
   const transfers=ALL_MODALITIES.filter(m=>NOVEL_PLATFORMS.has(m)&&!present.has(m)).map(m=>{
     const e=sig.mod[m]; if(!e)return null;
     const wonIn=Object.keys(e.wins).filter(x=>x!==disease);
     return wonIn.length?{m,wonIn,n:wonIn.length}:null;
-  }).filter(Boolean).sort((a,b)=>b.n-a.n).slice(0,2);
+  }).filter(Boolean).sort((a,b)=>b.n-a.n).slice(0,1);
   transfers.forEach(t=>{
     dirs.push({cls:'transfer',title:'Transfer a proven platform · '+t.m,
       body:'<b>'+escapeHtml(t.m)+'</b> is validating in '+t.n+' other indication'+(t.n>1?'s':'')+
         ' (e.g. '+escapeHtml(t.wonIn.slice(0,3).join(', '))+') but is <b>untried in '+escapeHtml(disease)+
-        '</b>. A first-in-indication '+escapeHtml(t.m)+' asset could define a new class here rather than crowd an existing one.'});
+        '</b> — a chance to define the class rather than crowd an existing target.'});
   });
-  // 2) Attack the shared failure mode
-  const falling=cons.filter(c=>c.cls==='falling'||c.cls==='contested');
-  if(falling.length){
-    dirs.push({cls:'failure',title:'Solve the failure mode',
-      body:'Approaches around <b>'+escapeHtml(falling.slice(0,3).map(c=>c.key).join(', '))+'</b> have stalled or split here — the unmet need in '+escapeHtml(disease)+
-        ' persists. A mechanism that <b>circumvents why these fail</b> (resistance, delivery, selectivity) beats adding another asset to a working target.'});
-  }
-  // 3) Out-innovate the crowded target
+  // 4) Escape the crowded target
   if(I&&I.crowded.length){
     const c=I.crowded[0];
     dirs.push({cls:'crowd',title:'Escape the crowded target',
-      body:'<b>'+escapeHtml(c[0])+'</b> is saturated ('+c[1]+' assets). A '+(c[0])+'-vs-'+(c[0])+
-        ' me-too is unlikely to differentiate — the step-change comes from a <b>novel target or a fundamentally better modality</b> on the same biology.'});
+      body:'<b>'+escapeHtml(c[0])+'</b> is saturated ('+c[1]+' assets). Another '+escapeHtml(c[0])+
+        ' agent won’t differentiate — differentiation comes from a <b>novel target or a fundamentally better modality</b> on the same biology.'});
   }
-  // 4) Raise the bar on the frontier leader
-  if(leader){
+  // 5) Raise the bar on the frontier leader (fallback)
+  if(dirs.length<4 && leader){
     const n=leader.node, lb=[n.modality,n.target].filter(Boolean).join('/');
-    dirs.push({cls:'leader',title:'Beat the leader on its weakness',
+    dirs.push({cls:'leader',title:'Beat the leader on its ceiling',
       body:'The frontier is <b>'+escapeHtml(n.company||stripTags(n.title).slice(0,24))+'</b>'+(lb?' ('+escapeHtml(lb)+')':'')+
-        '. Match-the-mechanism won’t win — target its ceiling: <b>durability/cure, acquired resistance, therapeutic index, or reaching patients it can’t</b>.'});
+        '. Match-the-mechanism won’t win — beat it on <b>durability/cure, acquired resistance, therapeutic index, or patients it can’t reach</b>.'});
   }
   return dirs.slice(0,4);
 }
 function spStat(v,l,cls){ return '<div class="sp-stat '+(cls||'')+'"><b>'+v+'</b><span>'+l+'</span></div>'; }
 function fmtB(m){ return m>=1000?('$'+(m/1000).toFixed(1).replace(/\.0$/,'')+'B'):('$'+Math.round(m)+'M'); }
+const _STAGE_SHORT={'Phase 3':'Ph3','Phase 2':'Ph2','Phase 1':'Ph1','Filed':'filed','Preclinical':'preclinical','Approved':'','Marketed':'','Platform/other':''};
+function stageNews(n){
+  const k=n.newsKind||'update', ss=_STAGE_SHORT[n.stage]!==undefined?_STAGE_SHORT[n.stage]:'';
+  if(k==='approval')return 'approval';
+  if(k==='positive data'||k==='negative data')return (ss?ss+' ':'')+k;
+  if(k==='discontinued')return (ss?ss+' ':'')+'discontinued';
+  return k;
+}
+function newsKindClass(k){
+  if(k==='approval'||k==='positive data')return 'good';
+  if(k==='negative data'||k==='discontinued'||k==='regulatory setback'||k==='setback'||k==='restructuring')return 'bad';
+  return 'neu';
+}
 function trunc(s,nchar){ s=s.trim(); if(s.length<=nchar)return s; return s.slice(0,nchar).replace(/\s+\S*$/,'')+'…'; }
 function shortDrug(n){
   const bits=[]; if(n.modality)bits.push(n.modality); if(n.stage&&n.stageRank>=2)bits.push(n.stage);
@@ -1165,17 +1278,25 @@ function breakthroughPrompt(area,disease,rows){
   const transfer=untried.filter(m=>NOVEL_PLATFORMS.has(m)).map(m=>{ const e=sig.mod[m]; if(!e)return null;
     const w=Object.keys(e.wins).filter(x=>x!==disease); return w.length?(m+' (validating in '+w.slice(0,3).join(', ')+')'):null; }).filter(Boolean).slice(0,5);
   if(transfer.length)p+='- CROSS-INDICATION SIGNAL — modalities proven in OTHER diseases but untried here: '+transfer.join('; ')+'.\n';
+  // segment coverage + whitespace + rescuable failures
+  const cov=segmentCoverage(rows);
+  p+='- POPULATION COVERAGE — non-squamous '+cov.histo.nsq+' / squamous '+cov.histo.sq+' assets; lines 1L '+cov.line['1L']+' / 2L+ '+cov.line.late+(cov.line.early?' / adjuvant '+cov.line.early:'')+'; biomarker-selected '+cov.bioSel+' of '+cov.assets+(cov.topMarkers.length?(' ('+cov.topMarkers.slice(0,5).map(([m,c])=>m+(c>1?'×'+c:'')).join(', ')+')'):'')+'.\n';
+  if(cov.ws.length)p+='- WHITESPACE SUBPOPULATIONS the frontier under-serves: '+cov.ws.join('; ')+'.\n';
+  const rescues=rows.filter(r=>r.node.neg&&r.node.target).map(r=>{const f=failureReason(r.node);return f.solvable?(r.node.target+(f.reason?' (failed on '+f.reason+')':'')):null;}).filter(Boolean);
+  if(rescues.length)p+='- RESCUABLE TARGETS — failed here for execution/selectivity reasons, not target invalidation (the target may still be valid with better engineering): '+[...new Set(rescues)].slice(0,5).join('; ')+'.\n';
   p+='\nYOUR TASK — propose 3 breakthrough concepts that could be FAR superior to the frontier above. Be a discerning scientist, not a brainstorm generator.\n';
   p+='Hard rules:\n';
   p+='- Do NOT propose incremental me-toos: no next-gen same-target, swapped ADC payload, or another bispecific against targets already listed.\n';
   p+='- Do NOT simply combine two targets/mechanisms that already work — that is the obvious move and rarely a breakthrough. If you invoke a combination, justify a specific synergy that solves a named failure mode, not additive effect.\n';
-  p+='- Anchor each idea in ONE of: (a) a mechanism/modality absent from this indication (see white space & cross-indication signal), (b) a root-cause fix for why the failed approaches failed, or (c) a biological insight about '+disease+' that the current field is ignoring.\n\n';
+  p+='- Every concept must name the SPECIFIC unmet need it addresses — a patient subpopulation (line, histology, biomarker status) or disease axis the frontier assets above do NOT already serve well. Prefer the whitespace subpopulations listed.\n';
+  p+='- Anchor each idea in ONE (ideally a combination) of: (a) a whitespace subpopulation the frontier ignores, (b) a rescuable target that failed on execution not biology — propose the engineering fix, (c) a modality absent here but proven elsewhere (cross-indication signal), or (d) a biological insight about '+disease+' the field is ignoring.\n\n';
   p+='For each concept give:\n';
-  p+='1. Core insight — the non-obvious biology or engineering insight others are missing, specific to '+disease+'.\n';
-  p+='2. Mechanism — target + modality + how it works, concretely enough to design the first experiment.\n';
-  p+='3. Why step-change (not incremental) — the single axis on which it could be 5–10× better than the named frontier leader (depth, durability/cure, resistance, therapeutic index, or reaching patients the frontier cannot), and the quantitative bar to beat.\n';
-  p+='4. Why now — the enabling technology or biological understanding that makes this feasible today but wasn\'t 3 years ago.\n';
-  p+='5. Killer risk — the one thing most likely to sink it, and the fastest, cheapest experiment to de-risk it.\n\n';
+  p+='1. Target patient & unmet need — the specific population the frontier underserves, and why it matters.\n';
+  p+='2. Core insight — the non-obvious biology or engineering insight others are missing, specific to '+disease+'.\n';
+  p+='3. Mechanism — target + modality + how it works, concretely enough to design the first experiment.\n';
+  p+='4. Why step-change (not incremental) — the single axis on which it could be 5–10× better than the named frontier leader (depth, durability/cure, resistance, therapeutic index, or reaching patients the frontier cannot), and the quantitative bar to beat.\n';
+  p+='5. Why now — the enabling technology or biological understanding that makes this feasible today but wasn\'t 3 years ago.\n';
+  p+='6. Killer risk — the one thing most likely to sink it, and the fastest, cheapest experiment to de-risk it.\n\n';
   p+='Then stress-test your own ideas: for each, state honestly whether it is truly novel or a disguised incremental, and cut any that are incremental. End with the ONE concept you would fund first and the specific reason it wins.';
   return p;
 }

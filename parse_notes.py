@@ -578,6 +578,61 @@ def extract_target(blob):
             return _TARGET_NAME[i]
     return None
 
+# --- patient-segment extraction: line of therapy, histology, biomarker selection ---
+# Powers the frontier coverage map, the whitespace callouts and the ideation brief.
+_SEG_LINE = [
+    ('early/adjuvant', r'(?i:neoadjuvant|adjuvant|perioperative|resected|resectable|localized|localised|early-?stage|non-metastatic|\bnmCRPC\b|\bnmCSPC\b)'),
+    ('1L',            r'(?i:\b1L\b|first-?line|frontline|front-?line|treatment-?na[iï]ve|newly diagnosed|untreated|hormone-?sensitive|\bmHSPC\b|\bmCSPC\b)'),
+    ('2L+/later',     r'(?i:\b2L\b|\b3L\b|2L\+|2L/3L|later-?line|previously treated|pre-?treated|post-(?:TKI|Tagrisso|osimertinib|PD-?1|PD-?L1|IO|platinum|chemo|SoC|surgery|radiation)|relapsed|refractory|\bR/R\b|\bRRMM\b|castration-?resistant|\bmCRPC\b)'),
+]
+_SEG_HISTO = [
+    ('squamous',     r'(?i:squamous|\bSCC\b|\bLUSC\b|\bHNSCC\b|\bcSCC\b|\bESCC\b)'),
+    ('non-squamous', r'(?i:non-?squamous|non-?SCC|\bLUAD\b|adenocarcinoma)'),
+]
+# biomarker / molecularly-selected population markers (selection, not just drug target)
+_SEG_BIO_RX = re.compile(
+    r'(EGFR(?:m| exon ?\d+| ex\d+)?|HER2(?:m|-low|\+|-)?|HER3|KRAS(?: ?G12[CDV])?|\bALK\b|ROS1|BRAF|'
+    r'\bMET(?:-OE| exon ?14)?|\bRET\b|NTRK|PIK3CA|HR\+|ER\+|PD-?L1(?:[ -]?(?:high|low|negative|neg|\u2264?\s?\d+%|TC ?<?\d+%))?|'
+    r'MSI-?H|dMMR|BRCA|PSMA\+?|TROP2|5T4|CDH6|Claudin ?18\.?2?|CLDN18\.2|BCMA|GPRC5D|FR[a\u03b1]|DLL3|exon ?20|exon20-ins)')
+def extract_segments(blob):
+    line = [name for name, pat in _SEG_LINE if re.search(pat, blob)]
+    histo = [name for name, pat in _SEG_HISTO if re.search(pat, blob)]
+    raw = []
+    for m in _SEG_BIO_RX.findall(blob):
+        tok = re.sub(r'\s+', ' ', m).strip()
+        if tok and tok not in raw:
+            raw.append(tok)
+    # drop a token that is a substring of a more specific one already present
+    bio = [t for t in raw if not any(t != o and t.lower() in o.lower() for o in raw)]
+    return {'line': line, 'histo': histo, 'bio': bio[:3]}
+
+# Nature of the news (for the "concepts rising vs failing" summaries).
+def news_kind(blob, neg, pos, stage_rank):
+    b = blob
+    if re.search(r'(?i:discontinu|terminat|shelv|wind(?:ing)? down|deprioriti)', b):
+        return 'discontinued'
+    if neg and re.search(r'(?i:fail|missed? (?:the )?(?:primary|endpoint)|did ?n[o\u2019\']?t meet|does not meet|negative (?:data|topline|result))', b):
+        return 'negative data'
+    if neg and re.search(r'(?i:\bCRL\b|not[- ]approvable|clinical hold|withdraw|rejected)', b):
+        return 'regulatory setback'
+    if neg and re.search(r'(?i:lay ?off|cut \d|cut staff|restructur|going concern)', b):
+        return 'restructuring'
+    if neg:
+        return 'setback'
+    if re.search(r'(?i:FDA approv|\bapproved\b|accelerated approval|full approval|CHMP positive|positive opinion|cleared)', b):
+        return 'approval'
+    if pos or re.search(r'(?i:met (?:the )?(?:primary|co-primary|key)|positive (?:ph|phase|topline|data|readout)|statistically significant|superiority|improved (?:OS|PFS|survival))', b):
+        return 'positive data'
+    if re.search(r'(?i:\bBLA\b|\bNDA\b|\bMAA\b|PDUFA|priority review|filed|submission|rolling)', b):
+        return 'regulatory filing'
+    if re.search(r'(?i:\bIPO\b|Series [A-E]\b|raise[sd]?|\bseed\b|\bPIPE\b|financing|\$\d[\d.]*[MB] (?:round|Series))', b):
+        return 'financing'
+    if re.search(r'(?i:acquir|acquisition|merger|licen[sc]|partnership|option (?:deal|to)|collaborat)', b):
+        return 'deal'
+    if stage_rank >= 2:
+        return 'in development'
+    return 'update'
+
 # Development stage, ranked (higher = more advanced). Used for the "frontier".
 def extract_stage(blob):
     b = blob
@@ -787,6 +842,8 @@ def parse_week(path, meta):
             'company': extract_company(node['full_text']),
             'modality': modality, 'target': extract_target(blob),
             'stage': stage, 'stageRank': stage_rank,
+            'newsKind': news_kind(blob, neg, positive, stage_rank),
+            'seg': extract_segments(blob),
             'asset': asset, 'interesting': interesting,
             'details': [to_detail(k) for k in node['kids']],
         }
