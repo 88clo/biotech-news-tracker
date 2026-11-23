@@ -164,12 +164,15 @@ header.top{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--p
 .ov-tag{font-size:8.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-faint);
   border:1px solid var(--line);border-radius:4px;padding:0 4px;background:var(--paper)}
 .ov-l b{color:var(--ink);font-weight:600}
-.ov-bal .up{color:#1d6b3f;font-weight:600}.ov-bal .dn{color:#b3261e;font-weight:600}
-.ov-bal .ov-tot{color:var(--ink-faint);margin-left:auto;font-family:var(--mono);font-size:10px}
-.ov-trend .tr{font-size:10.5px;padding:1px 5px;border-radius:9px;font-weight:600}
-.ov-trend .tr.up{background:#e6f1ea;color:#1d6b3f}
-.ov-trend .tr.dn{background:#fbe9e7;color:#b3261e}
-.ov-trend .tr.ct{background:#fff4e0;color:#8a5a00}
+/* single balance line: advancing count + green/amber tags, then setback count + red tags */
+.ov-bal{gap:4px 5px}
+.ov-bal .up{color:#1d6b3f;font-weight:700;font-family:var(--mono);font-size:10.5px}
+.ov-bal .dn{color:#b3261e;font-weight:700;font-family:var(--mono);font-size:10.5px}
+.ov-bal .n-set{margin-left:4px}
+.ov-bal .tr{font-size:10px;padding:1px 6px;border-radius:9px;font-weight:600;white-space:nowrap}
+.ov-bal .tr.up{background:#e6f1ea;color:#1d6b3f}
+.ov-bal .tr.dn{background:#fbe9e7;color:#b3261e}
+.ov-bal .tr.ct{background:#fff4e0;color:#8a5a00}
 
 .story{border-left:2px solid var(--accent);margin:6px 0;padding-left:12px}
 .story-head{display:flex;gap:9px;align-items:flex-start;width:100%;border:0;background:transparent;text-align:left;padding:3px 2px}
@@ -470,6 +473,9 @@ function areaSort(cat,areas){
   });
 }
 function countStories(nodes){let n=0;for(const x of nodes){n+= x.type==='story'?1:countStories(x.children);}return n;}
+// count only stories currently visible (respects the ≥$750M filter) — used for the
+// live header/tab tallies so the numbers match what's on screen
+function countShown(nodes){let n=0;for(const x of nodes){ if(x.type==='story'){ if(passesFilter(x)) n++; } else n+=countShown(x.children);} return n;}
 
 // Global disease frequency per area so the SAME disease sits in the SAME place
 // in every week column -> you can scan across weeks and follow one disease.
@@ -604,7 +610,7 @@ function renderNodes(nodes,cat,wid,pathPrefix,areaName,curDisease){
       const sh=el('button','subgrp-head');
       sh.innerHTML=CHEV+'<span class="sglabel"></span><span class="n mono"></span>';
       sh.querySelector('.sglabel').textContent=node.label;
-      sh.querySelector('.n').textContent=countStories(node.children);
+      sh.querySelector('.n').textContent=countShown(node.children);
       sh.addEventListener('click',()=>flipLevel('sub',bk,sgEl));
       sgEl.appendChild(sh);
       const sb=el('div','subgrp-body');
@@ -623,7 +629,7 @@ function renderNodes(nodes,cat,wid,pathPrefix,areaName,curDisease){
       const head=el('button','grp-head');
       head.innerHTML=CHEV+'<span class="glabel"></span><span class="n mono"></span>';
       head.querySelector('.glabel').textContent=node.label;
-      head.querySelector('.n').textContent=countStories(node.children);
+      head.querySelector('.n').textContent=countShown(node.children);
       head.addEventListener('click',()=>{ flipLevel('grp',gk,g);
         if(cat==='disease' && node.label!=='Misc.') openPanel(areaName,node.label);
         else setPin(areaName,node.label); });
@@ -677,7 +683,7 @@ function renderColumn(week){
   head.innerHTML='<span class="wlabel"></span>'+(isLast?'<span class="live">latest</span>':'')+'<span class="wcount mono"></span>';
   head.querySelector('.wlabel').textContent=week.meta.label;
   const areas=areaSort(state.cat, week.categories[state.cat]||[]);
-  head.querySelector('.wcount').textContent=areas.reduce((a,x)=>a+countStories(x.children),0)+' stories';
+  head.querySelector('.wcount').textContent=areas.reduce((a,x)=>a+countShown(x.children),0)+' stories';
   head.addEventListener('click',()=>{ // clicking a peek focuses it
     navTo(WEEKS.indexOf(week));
   });
@@ -690,7 +696,7 @@ function renderColumn(week){
     const ah=el('button','area-head');
     ah.innerHTML=CHEV+'<span class="tag"></span><span class="name"></span><span class="n mono"></span>';
     ah.querySelector('.name').textContent=area.area;
-    ah.querySelector('.n').textContent=countStories(area.children);
+    ah.querySelector('.n').textContent=countShown(area.children);
     ah.addEventListener('click',()=>flipLevel('area',ak,wrap));
     wrap.appendChild(ah);
     const ab=el('div','area-body');
@@ -713,12 +719,17 @@ function frontierBlurb(area,disease){
   const out={};
   if(I.leader){ const lb=leaderBits(I.leader), n=I.leader.node;
     out.leader=lb.co+(n.efficacy?(' — '+n.efficacy):(lb.sub?(' — '+lb.sub):'')); }
-  out.adv=I.advancing; out.set=I.setbacks; out.n=I.rows.length;
+  // count on the same basis as the concept tags: advancing = wins (positive data
+  // or an approved/marketed asset), setbacks = negative stories
+  out.adv=I.rows.filter(r=>assetWin(r.node)).length;
+  out.set=I.rows.filter(r=>r.node.neg).length;
+  out.n=I.rows.length;
   const cons=conceptTrajectories(I.rows);
-  const rising=cons.find(c=>c.cls==='rising'||c.cls==='emerging');
-  const falling=cons.find(c=>c.cls==='falling'||c.cls==='struggling');
-  out.rising=rising?rising.key:null; out.falling=falling?falling.key:null;
-  out.contested=(cons.find(c=>c.cls==='contested')||{}).key||null;
+  // concept tags grouped by direction: green = validating, amber = contested,
+  // red = struggling (these ride alongside the advancing/setback counts)
+  out.green=cons.filter(c=>c.cls==='rising').map(c=>c.key).slice(0,4);
+  out.amber=cons.filter(c=>c.cls==='contested').map(c=>c.key).slice(0,2);
+  out.red=cons.filter(c=>c.cls==='falling').map(c=>c.key).slice(0,4);
   return out;
 }
 function ovIndRow(area,disease,count){
@@ -734,12 +745,13 @@ function ovIndRow(area,disease,count){
     const blur=el('div','ov-blurb');
     let h='';
     if(b.leader)h+='<div class="ov-l"><span class="ov-tag">frontier</span><b>'+escapeHtml(b.leader)+'</b></div>';
-    h+='<div class="ov-l ov-bal"><span class="up">▲ '+b.adv+' advancing</span><span class="dn">▼ '+b.set+' setback'+(b.set===1?'':'s')+'</span><span class="ov-tot">'+b.n+' total</span></div>';
-    const trend=[];
-    if(b.rising)trend.push('<span class="tr up">↗ '+escapeHtml(b.rising)+'</span>');
-    if(b.contested)trend.push('<span class="tr ct">↔ '+escapeHtml(b.contested)+'</span>');
-    if(b.falling)trend.push('<span class="tr dn">↘ '+escapeHtml(b.falling)+'</span>');
-    if(trend.length)h+='<div class="ov-l ov-trend">'+trend.join('')+'</div>';
+    // single balance line: # advancing + green/amber concept tags, then # setbacks + red concept tags
+    let line='<span class="up n-adv">▲ '+b.adv+'</span>';
+    b.green.forEach(k=>line+='<span class="tr up">'+escapeHtml(k)+'</span>');
+    b.amber.forEach(k=>line+='<span class="tr ct">'+escapeHtml(k)+'</span>');
+    line+='<span class="dn n-set">▼ '+b.set+'</span>';
+    b.red.forEach(k=>line+='<span class="tr dn">'+escapeHtml(k)+'</span>');
+    h+='<div class="ov-l ov-bal">'+line+'</div>';
     blur.innerHTML=h;
     row.appendChild(blur);
   }
@@ -817,6 +829,7 @@ function renderCarousel(){
   track.innerHTML='';
   WEEKS.forEach(w=>track.appendChild(renderColumn(w)));
   if(state.cat==='disease') track.appendChild(renderOverview());  // persistent index past the latest week
+  renderTimeline();   // refresh tab tallies (they reflect the ≥$750M filter)
   updateTglButtons();
   highlightPinned();
   showPinNote();
@@ -948,7 +961,7 @@ function renderTimeline(){
   const tl=document.getElementById('timeline'); tl.innerHTML='';
   WEEKS.forEach((w,i)=>{
     const b=el('button','wk'+(i===state.focus?' focus':''));
-    const n=(w.categories[state.cat]||[]).reduce((a,x)=>a+countStories(x.children),0);
+    const n=(w.categories[state.cat]||[]).reduce((a,x)=>a+countShown(x.children),0);
     b.innerHTML='<b></b><small></small>';
     b.querySelector('b').textContent=w.meta.short||w.meta.label;
     b.querySelector('small').textContent=n+' stories';
