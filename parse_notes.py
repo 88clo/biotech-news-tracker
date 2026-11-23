@@ -1074,7 +1074,21 @@ NEGATIVE_RX = re.compile(
     r'treatment-related death|tx-related death|voluntary recall|product recall|recall of|'
     r'\bsuspend(?:s|ed)?\b|\bpaus(?:e|ed|ing)\b|scrap(?:s|ped)?|abandon(?:s|ed)?|'
     r'disappoint|underperform|cut\s+(?:fy\d+\s+)?(?:revenue\s+)?guidance|'
-    r'refus(?:e|al) to file|\bRTF\b|deprioriti[sz]|shelv(?:e|ed|ing)|going concern'
+    r'refus(?:e|al) to file|\bRTF\b|deprioriti[sz]|shelv(?:e|ed|ing)|going concern|'
+    # --- critical framing / "not differentiated" / IP challenges ---
+    r'\btrivial\b|\bme-too\b|'
+    r'not\s+(?:clinically\s+)?meaningful|no\s+meaningful\s+(?:benefit|improvement|difference)|'
+    r'lack(?:s|ing)?\s+(?:clinical\s+|meaningful\s+)?(?:benefit|differentiation|efficacy|meaningful)|'
+    r'(?:not|hardly|barely)\s+(?:clinically\s+)?differentiat|'
+    r'(?:fail(?:s|ed|ing)?|does\s?n[o’\']?t|not\s+enough)\s+to\s+(?:justify|warrant|differentiate|support)|'
+    r'fell?\s+short|falls?\s+short|short of\s+(?:expectations|the\s+bar)|below\s+expectations|'
+    r'miss(?:es|ed)?\s+expectations|worse than\s+expected|'
+    # IP: only clearly-adverse outcomes (a *settled* litigation is routine, not news to flag)
+    r'patent\s+cliff|(?:patent|claims?)\s+(?:invalidat|struck down|ruled invalid)|invalidat(?:e|ed|es|ion)\s+(?:the\s+)?(?:patent|claim)|'
+    r'loss of exclusivity|'
+    r'\bsetback\b|blow to\b|slash(?:es|ed)?\s+(?:guidance|forecast|staff|workforce|headcount)|'
+    r'dilutive|down\s?round|'
+    r'questions?\s+(?:the\s+)?(?:value|benefit|efficacy|data)|cast(?:s|ing)?\s+doubt'
     r')')
 def is_negative(blob):
     return bool(NEGATIVE_RX.search(blob))
