@@ -1358,7 +1358,7 @@ def parse_week(path, meta):
             'efficacy': extract_efficacy(blob),
             'seg': extract_segments(blob),
             'asset': asset, 'interesting': interesting,
-            'details': [to_detail(k) for k in node['kids']],
+            'details': _market_first([to_detail(k) for k in node['kids']]),
         }
 
     def make_story(node, ta=None, disease=None):
@@ -1411,6 +1411,15 @@ def parse_week(path, meta):
 
     def to_detail(node):
         return {'html': node['title_html'], 'children': [to_detail(k) for k in node['kids']]}
+
+    def _market_first(details):
+        """Pull any 'Market size' (or TAM) bullet to the front of a story's details,
+        keeping the order of the rest. Applies to every view."""
+        def is_mkt(d):
+            t = re.sub(r'<[^>]+>', '', d.get('html', '')).strip().lower()
+            return t.startswith('market size') or t.startswith('tam') or t.startswith('market:')
+        details.sort(key=lambda d: 0 if is_mkt(d) else 1)   # stable sort: market size first
+        return details
 
     def get_area(cat, name):
         disp = canon_ta(name) if cat == 'disease' else name.strip()
