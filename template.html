@@ -461,12 +461,14 @@ const CAT_BG={disease:'--disease-bg',modality:'--modality-bg',theme:'--theme-bg'
 
 // canonical ordering so the same area sits in the same place across weeks
 const ORDER={disease:['Cancer','Cardio','Immuno','Neuro','Metabolic','Infectious','Respiratory','Eye','Muscle','Bone','Blood','Kidney','Derm','Skin','Hearing','Pain','Psych',"Women's health",'Aging'],
-  modality:['Cell therapy','Gene therapy','Gene editing','Drug delivery','Antibody','Devices','AI discovery','AI drug discovery','Techbio','Platforms'],
-  theme:['Big Pharma','China','Pricing','Regulatory','Policy','Payors','Markets','Commercialization','Clinical trials','Distribution','Healthcare delivery','Consumer health','Research funding','EU','Preclinical','Restructuring','Funds','Healthcare']};
+  // modality & theme meta-areas (the parser also stamps each with an `order` field)
+  modality:['Biologics','Nucleic acid & gene','Small molecule & degraders','Computational & omics','Delivery & devices','Other'],
+  theme:['Capital & deals','Policy & access','Markets & geography','Science & platforms','Operations & supply','Other']};
 function areaSort(cat,areas){
   const ord=ORDER[cat]||[];
   return areas.slice().sort((a,b)=>{
-    let ia=ord.indexOf(a.area), ib=ord.indexOf(b.area);
+    // prefer the parser's stable `order` (meta-areas); else fall back to ORDER list
+    let ia=(a.order!=null)?a.order:ord.indexOf(a.area), ib=(b.order!=null)?b.order:ord.indexOf(b.area);
     if(ia<0)ia=99; if(ib<0)ib=99;
     if(ia!==ib)return ia-ib;
     return countStories(b.children)-countStories(a.children);
@@ -510,22 +512,25 @@ function sortDiseaseGroups(area,nodes){
   });
 }
 
-// Union of every area -> subgroup -> indication seen across all weeks, for the
-// persistent overview column. Subgroups keep their fixed order; indications carry
-// a total story count. Areas with no subgroup scheme store indications under ''.
-const OVERVIEW_TREE=(function(){
+// Union of every area -> subgroup -> group seen across all weeks in one category,
+// for the persistent overview column. Subgroups keep their fixed order; groups
+// carry a total story count. Areas with no subgroup scheme store groups under ''.
+const _OV_CACHE={};
+function overviewTree(cat){
+  if(cat in _OV_CACHE) return _OV_CACHE[cat];
   const areas={};
-  WEEKS.forEach(w=>(w.categories.disease||[]).forEach(a=>{
-    const A=areas[a.area]||(areas[a.area]={subs:{}, order:{}, hasSub:false, total:0});
-    function addInd(sg,g){ const S=A.subs[sg]||(A.subs[sg]={}); S[g.label]=(S[g.label]||0)+countStories(g.children); A.total+=countStories(g.children); }
+  WEEKS.forEach(w=>(w.categories[cat]||[]).forEach(a=>{
+    const A=areas[a.area]||(areas[a.area]={subs:{}, order:{}, hasSub:false, total:0, aorder:a.order});
+    function addG(sg,g){ const S=A.subs[sg]||(A.subs[sg]={}); S[g.label]=(S[g.label]||0)+countStories(g.children); A.total+=countStories(g.children); }
     (a.children||[]).forEach(node=>{
       if(node.type==='subgroup'){ A.hasSub=true; A.order[node.label]=node.order;
-        (node.children||[]).forEach(g=>{ if(g.type==='group')addInd(node.label,g); }); }
-      else if(node.type==='group'){ addInd('', node); }
+        (node.children||[]).forEach(g=>{ if(g.type==='group')addG(node.label,g); }); }
+      else if(node.type==='group'){ addG('', node); }
     });
   }));
-  return areas;
-})();
+  _OV_CACHE[cat]=areas; return areas;
+}
+const OVERVIEW_TREE=overviewTree('disease');   // back-compat alias (disease)
 
 const BIG_MKT=750; // $millions; a drug at/above this peak-sales figure is "interesting"
 const LEVEL_DEFAULT={area:true, sub:true, grp:true, story:false}; // areas/subgroups/indications open, details closed
@@ -631,7 +636,7 @@ function renderNodes(nodes,cat,wid,pathPrefix,areaName,curDisease){
       head.querySelector('.glabel').textContent=node.label;
       head.querySelector('.n').textContent=countShown(node.children);
       head.addEventListener('click',()=>{ flipLevel('grp',gk,g);
-        if(cat==='disease' && node.label!=='Misc.') openPanel(areaName,node.label);
+        if(node.label!=='Misc.') openPanel(areaName,node.label);
         else setPin(areaName,node.label); });
       g.appendChild(head);
       const body=el('div','grp-body');
@@ -655,7 +660,7 @@ function renderNodes(nodes,cat,wid,pathPrefix,areaName,curDisease){
       body.appendChild(t);
       head.appendChild(body);
       head.addEventListener('click',()=>{ if(has)flipLevel('story',sk,s);
-        if(curDisease){ if(cat==='disease'&&curDisease!=='Misc.') openPanel(areaName,curDisease); else setPin(areaName,curDisease); } });
+        if(curDisease){ if(curDisease!=='Misc.') openPanel(areaName,curDisease); else setPin(areaName,curDisease); } });
       if(!has && !curDisease) head.style.cursor='default';
       s.appendChild(head);
       if(has){
@@ -724,7 +729,7 @@ function frontierBlurb(area,disease){
   out.adv=I.rows.filter(r=>assetWin(r.node)).length;
   out.set=I.rows.filter(r=>r.node.neg).length;
   out.n=I.rows.length;
-  const cons=conceptTrajectories(I.rows);
+  const cons=conceptTrajectories(I.rows, (PANEL_CFG[state.cat]||PANEL_CFG.disease).keyFn);
   // concept tags grouped by direction: green = validating, amber = contested,
   // red = struggling (these ride alongside the advancing/setback counts)
   out.green=cons.filter(c=>c.cls==='rising').map(c=>c.key).slice(0,4);
@@ -744,7 +749,7 @@ function ovIndRow(area,disease,count){
   if(b && !isMisc){
     const blur=el('div','ov-blurb');
     let h='';
-    if(b.leader)h+='<div class="ov-l"><span class="ov-tag">frontier</span><b>'+escapeHtml(b.leader)+'</b></div>';
+    if(b.leader)h+='<div class="ov-l"><span class="ov-tag">'+(state.cat==='disease'?'frontier':'top')+'</span><b>'+escapeHtml(b.leader)+'</b></div>';
     // single balance line: # advancing + green/amber concept tags, then # setbacks + red concept tags
     let line='<span class="up n-adv">▲ '+b.adv+'</span>';
     b.green.forEach(k=>line+='<span class="tr up">'+escapeHtml(k)+'</span>');
@@ -759,21 +764,24 @@ function ovIndRow(area,disease,count){
   else head.style.cursor='default';
   return row;
 }
+const OV_UNIT={disease:'indications', modality:'areas', theme:'areas'};
 function renderOverview(){
+  const cat=state.cat, TREE=overviewTree(cat);
   const col=el('div','weekcol overview');
   const head=el('div','col-head ov-head');
-  head.innerHTML='<span class="wlabel">All indications</span><span class="live idx">index</span><span class="wcount mono"></span>';
+  head.innerHTML='<span class="wlabel">All '+CAT_LABEL[cat].toLowerCase()+'</span><span class="live idx">index</span><span class="wcount mono"></span>';
   col.appendChild(head);
   const body=el('div','ov-body');
-  // OVERVIEW_TREE is the source of truth, ordered by ORDER['disease']
-  const ord=(typeof ORDER!=='undefined'&&ORDER.disease)||[];
-  const areaNames=Object.keys(OVERVIEW_TREE).sort((a,b)=>{
-    let ia=ord.indexOf(a), ib=ord.indexOf(b); if(ia<0)ia=99; if(ib<0)ib=99;
-    if(ia!==ib)return ia-ib; return OVERVIEW_TREE[b].total-OVERVIEW_TREE[a].total;
+  const ord=(typeof ORDER!=='undefined'&&ORDER[cat])||[];
+  const areaNames=Object.keys(TREE).sort((a,b)=>{
+    const A=TREE[a],B=TREE[b];
+    let ia=(A.aorder!=null)?A.aorder:ord.indexOf(a), ib=(B.aorder!=null)?B.aorder:ord.indexOf(b);
+    if(ia<0)ia=99; if(ib<0)ib=99;
+    if(ia!==ib)return ia-ib; return B.total-A.total;
   });
   let total=0;
   areaNames.forEach(an=>{
-    const A=OVERVIEW_TREE[an];
+    const A=TREE[an];
     const ak='ov-a|'+an;
     const wrap=el('div','area'+(isOpen('area',ak)?' open':''));
     const ah=el('button','area-head');
@@ -815,7 +823,7 @@ function renderOverview(){
     wrap.appendChild(ab);
     body.appendChild(wrap);
   });
-  head.querySelector('.wcount').textContent=total+' indications';
+  head.querySelector('.wcount').textContent=total+' '+OV_UNIT[cat];
   col.appendChild(body);
   return col;
 }
@@ -828,7 +836,7 @@ function renderCarousel(){
   const track=document.getElementById('track');
   track.innerHTML='';
   WEEKS.forEach(w=>track.appendChild(renderColumn(w)));
-  if(state.cat==='disease') track.appendChild(renderOverview());  // persistent index past the latest week
+  track.appendChild(renderOverview());  // persistent index past the latest week (all views)
   renderTimeline();   // refresh tab tallies (they reflect the ≥$750M filter)
   updateTglButtons();
   highlightPinned();
@@ -968,14 +976,14 @@ function renderTimeline(){
     b.addEventListener('click',()=>navTo(i));
     tl.appendChild(b);
   });
-  // the persistent overview is the column just past the last week (disease view only)
-  if(state.cat==='disease'){
-    const oi=WEEKS.length;
-    const ind=OVERVIEW_TREE?Object.values(OVERVIEW_TREE).reduce((a,A)=>{
-      let c=0; Object.values(A.subs).forEach(S=>c+=Object.keys(S).length); return a+c; },0):0;
+  // the persistent overview is the column just past the last week (all views)
+  {
+    const oi=WEEKS.length, TREE=overviewTree(state.cat);
+    const ngrp=Object.values(TREE).reduce((a,A)=>{
+      let c=0; Object.values(A.subs).forEach(S=>c+=Object.keys(S).length); return a+c; },0);
     const b=el('button','wk ov-tab'+(state.focus===oi?' focus':''));
-    b.innerHTML='<b>All indications</b><small></small>';
-    b.querySelector('small').textContent=ind+' indications';
+    b.innerHTML='<b>All '+CAT_LABEL[state.cat].toLowerCase()+'</b><small></small>';
+    b.querySelector('small').textContent=ngrp+' '+OV_UNIT[state.cat];
     b.addEventListener('click',()=>navTo(oi));
     tl.appendChild(b);
   }
@@ -1129,7 +1137,7 @@ const NOVEL_PLATFORMS=new Set(['CAR-T','TCR-T','Cell therapy','Gene therapy','Ba
 
 function collectIndication(area,disease){
   if(!INDEX)INDEX=flatten();
-  return INDEX.filter(r=>r.cat==='disease'&&r.crumbs[0]===area&&r.crumbs[1]===disease);
+  return INDEX.filter(r=>r.cat===state.cat&&r.crumbs[0]===area&&r.crumbs[1]===disease);
 }
 function frontierScore(r){
   // best-in-disease = most advanced + best data + biggest market
@@ -1145,7 +1153,7 @@ function tally(rows,field){
 }
 const _INS_CACHE={};
 function indicationInsight(area,disease){
-  const key=area+'||'+disease;
+  const key=state.cat+'||'+area+'||'+disease;
   if(key in _INS_CACHE) return _INS_CACHE[key];
   const rows=collectIndication(area,disease);
   let out=null;
@@ -1174,11 +1182,14 @@ function leaderBits(r){
 // classify each as rising / contested / struggling / emerging over time.
 // a story is a "win" if it has positive data OR is an approved/marketed asset
 function assetWin(n){ return !n.neg && (n.pos || (n.stageRank||0)>=6); }
-function conceptTrajectories(rows){
+// default key = mechanism (target, else modality). Pass a keyFn to group a
+// modality/theme group by a more meaningful axis (its targets, or its players).
+function conceptTrajectories(rows, keyFn){
+  keyFn = keyFn || (r=>r.node.target || r.node.modality || 'Other');
   const g={};
   rows.forEach(r=>{
     const n=r.node;
-    const key=n.target || n.modality || 'Other';
+    const key=keyFn(r) || 'Other';
     (g[key]=g[key]||{key,items:[],pos:0,neg:0}).items.push(r);
     if(n.neg)g[key].neg++; else if(assetWin(n))g[key].pos++;
   });
@@ -1297,7 +1308,41 @@ function section(t,sub){
   return s;
 }
 
+// one concept/thread trajectory box (shared by all three views)
+function conceptBox(c){
+  const box=el('div','sp-con '+c.cls);
+  const h=el('div','sp-con-h');
+  h.innerHTML='<span class="sp-con-ar">'+c.ar+'</span><span class="sp-con-k">'+escapeHtml(c.key)+'</span>'+
+    '<span class="sp-con-tag">'+c.tag+'</span>';
+  box.appendChild(h);
+  const ul=el('ul','sp-con-ev');
+  c.items.slice(0,4).forEach(r=>{ const n=r.node;
+    const win=assetWin(n); const mk=n.neg?'d':(win?'u':'z'), sym=n.neg?'▼':(win?'▲':'•');
+    const nkc=newsKindClass(n.newsKind);
+    const li=el('li','ev-click'); li.title='Go to this headline';
+    li.innerHTML='<span class="mk '+mk+'">'+sym+'</span><span class="ew">'+escapeHtml(r.week.meta.short||'')+'</span>'+
+      '<span class="et"><b>'+escapeHtml(n.company||stripTags(n.title).slice(0,18))+'</b> '+
+      '<span class="nk '+nkc+'">'+escapeHtml(stageNews(n))+'</span><span class="ev-go">↪</span></span>';
+    li.addEventListener('click',()=>gotoStory(n._uid, r.week));
+    ul.appendChild(li); });
+  box.appendChild(ul);
+  return box;
+}
+// per-view wording & grouping for the trends panel
+const PANEL_CFG={
+  disease:{crumb:'indication trends', statN:'assets',
+    conH:'Concepts rising vs failing', conSub:'mechanisms gaining or losing ground in this indication',
+    keyFn:r=>r.node.target||r.node.modality||'Other'},
+  modality:{crumb:'modality trends', statN:'headlines',
+    conH:'Targets & players rising vs failing', conSub:'where this modality is gaining or losing ground over time',
+    keyFn:r=>r.node.target||r.node.company||'Other'},
+  theme:{crumb:'theme trends', statN:'headlines',
+    conH:'Players & threads rising vs failing', conSub:'who is advancing or struggling in this area over time',
+    keyFn:r=>r.node.company||r.node.target||'Other'}
+};
+
 function renderPanel(area,disease){
+  const cat=state.cat, CFG=PANEL_CFG[cat]||PANEL_CFG.disease;
   const sp=document.getElementById('sidepanel'); sp.innerHTML=''; sp.setAttribute('aria-hidden','false');
   const rows=collectIndication(area,disease);
   const I=indicationInsight(area,disease);
@@ -1305,11 +1350,11 @@ function renderPanel(area,disease){
   const mkts=rows.map(r=>r.node.mkt).filter(x=>x!=null);
   // header
   const head=el('div','sp-head');
-  head.innerHTML='<div class="sp-crumb">'+escapeHtml(area)+' · indication trends</div><h2 class="sp-title">'+escapeHtml(disease)+'</h2>';
+  head.innerHTML='<div class="sp-crumb">'+escapeHtml(area)+' · '+CFG.crumb+'</div><h2 class="sp-title">'+escapeHtml(disease)+'</h2>';
   const close=el('button','sp-close','✕'); close.title='Close'; close.addEventListener('click',closePanel); head.appendChild(close);
   const stats=el('div','sp-stats');
   stats.innerHTML=
-    spStat(rows.length,'assets')+spStat(adv.length,'advancing','pos')+spStat(neg.length,'setbacks','neg')+
+    spStat(rows.length,CFG.statN)+spStat(adv.length,'advancing','pos')+spStat(neg.length,'setbacks','neg')+
     spStat(mkts.length?fmtB(Math.max(...mkts)):'—','top mkt');
   head.appendChild(stats); sp.appendChild(head);
   const body=el('div','sp-body'); sp.appendChild(body);
@@ -1341,29 +1386,38 @@ function renderPanel(area,disease){
     body.appendChild(s);
   }
 
-  // concepts rising vs failing — the core trend view
-  const cons=conceptTrajectories(rows);
+  // concepts / threads rising vs failing — the core trend view (grouping is per-cat)
+  let cons=conceptTrajectories(rows, CFG.keyFn);
+  // for non-disease, drop the noisy single-headline "Other" bucket if it dominates
+  if(cat!=='disease') cons=cons.filter(c=>!(c.key==='Other'&&c.items.length<2));
   if(cons.length){
-    const s=section('Concepts rising vs failing','mechanisms gaining or losing ground in this indication');
-    cons.forEach(c=>{
-      const box=el('div','sp-con '+c.cls);
-      const h=el('div','sp-con-h');
-      h.innerHTML='<span class="sp-con-ar">'+c.ar+'</span><span class="sp-con-k">'+escapeHtml(c.key)+'</span>'+
-        '<span class="sp-con-tag">'+c.tag+'</span>';
-      box.appendChild(h);
-      const ul=el('ul','sp-con-ev');
-      c.items.slice(0,4).forEach(r=>{ const n=r.node;
-        const win=assetWin(n); const mk=n.neg?'d':(win?'u':'z'), sym=n.neg?'▼':(win?'▲':'•');
-        const nkc=newsKindClass(n.newsKind);
-        const li=el('li','ev-click'); li.title='Go to this headline';
-        li.innerHTML='<span class="mk '+mk+'">'+sym+'</span><span class="ew">'+escapeHtml(r.week.meta.short||'')+'</span>'+
-          '<span class="et"><b>'+escapeHtml(n.company||stripTags(n.title).slice(0,18))+'</b> '+
-          '<span class="nk '+nkc+'">'+escapeHtml(stageNews(n))+'</span><span class="ev-go">↪</span></span>';
-        li.addEventListener('click',()=>gotoStory(n._uid, r.week));
-        ul.appendChild(li); });
-      box.appendChild(ul); s.appendChild(box);
-    });
+    const s=section(CFG.conH, CFG.conSub);
+    cons.forEach(c=>s.appendChild(conceptBox(c)));
     body.appendChild(s);
+  }
+
+  // --- the frontier & breakthrough sections are drug/indication-specific ---
+  if(cat!=='disease'){
+    // Recent developments: newest headlines in this group, clickable
+    const recent=rows.slice().sort((a,b)=>b.week.meta.sort-a.week.meta.sort).slice(0,8);
+    if(recent.length){
+      const s=section('Recent developments','latest headlines in this '+(cat==='modality'?'modality':'theme'));
+      recent.forEach(r=>{ const n=r.node;
+        const row=el('div','sp-row ev-click'); row.title='Go to this headline';
+        const wk=el('span','sp-row-wk'); wk.textContent=r.week.meta.short||r.week.meta.label; row.appendChild(wk);
+        const main=el('div','sp-row-main');
+        const t=el('div','sp-row-t'); t.innerHTML=withCompany(n.title,n.company,coClass(n)); main.appendChild(t);
+        const m=el('div','sp-row-m');
+        m.innerHTML='<span class="sp-mc nkk '+newsKindClass(n.newsKind)+'">'+escapeHtml(n.newsKind||'update')+'</span>'+
+          (n.mkt!=null?'<span class="sp-mc mk">'+escapeHtml(n.mktLabel)+'</span>':'');
+        main.appendChild(m); row.appendChild(main);
+        row.addEventListener('click',()=>gotoStory(n._uid, r.week));
+        s.appendChild(row);
+      });
+      body.appendChild(s);
+    }
+    body.scrollTop=0; sp.scrollTop=0;
+    return;
   }
 
   // frontier — what best-in-class efficacy looks like (the bar to beat)

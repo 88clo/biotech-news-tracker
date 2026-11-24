@@ -163,6 +163,87 @@ def apply_subgroups(area):
                         'children': buckets[sg]})
     area['children'] = out
 
+# --------------------------------------------------------------------------
+# Meta-groups for the modality & theme views. These views are otherwise a long
+# flat list of small areas; clustering them under a few meta-areas (and treating
+# each original area as a deep-divable "group") gives them the same TA -> group ->
+# stories shape as the disease view, so the overview column and the trends
+# deep-dive panel work there too.
+# META_DEFS[cat] = ordered list of (meta_area, [member area names]); any area not
+# listed lands in 'Other'.
+# --------------------------------------------------------------------------
+META_DEFS = {
+    'modality': [
+        ('Biologics',             ['antibody', 'antibodies', 'bispecific', 'adc', 'cell therapy',
+                                   'car-t', 't-cell engager', 'protein', 'enzyme', 'fusion protein']),
+        ('Nucleic acid & gene',   ['rna', 'mrna', 'sirna', 'rnai', 'aso', 'antisense', 'oligonucleotide',
+                                   'gene therapy', 'gene editing', 'editing', 'crispr', 'base editing']),
+        ('Small molecule & degraders', ['small molecule', 'degraders', 'protein degradation',
+                                   'molecular glue', 'peptides', 'radiopharma', 'radiopharmaceuticals']),
+        ('Computational & omics',  ['ai', 'ai discovery', 'ai drug discovery', 'techbio', 'omics',
+                                   'ai & tools', 'platforms']),
+        ('Delivery & devices',     ['drug delivery', 'devices', 'delivery']),
+        ('Other', []),
+    ],
+    'theme': [
+        ('Capital & deals',        ['funding & ipos', 'funding', 'ipos', 'big pharma', 'deals', 'm&a',
+                                   'funds', 'venture', 'financing', 'earnings']),
+        ('Policy & access',        ['pricing', 'regulatory', 'legal & ip', 'prv', 'reimbursement',
+                                   'policy', 'ftc', 'ip']),
+        ('Markets & geography',    ['china', 'eu', 'japan', 'uk', 'india', 'geography']),
+        ('Science & platforms',    ['ai & tools', 'research', 'research funding', 'clinical trial design',
+                                   'microbiome', 'omics', 'protein degrader', 'small molecule',
+                                   'platforms', 'discovery']),
+        ('Operations & supply',    ['manufacturing & supply', 'manufacturing', 'supply', 'vaccines',
+                                   'cdmo']),
+        ('Other', []),   # unsorted, gi, rare, and anything unmapped
+    ],
+}
+META_ORDER = {cat: [m for m, _ in defs] for cat, defs in META_DEFS.items()}
+META_OF = {}
+for _cat, _defs in META_DEFS.items():
+    _m = {}
+    for _meta, _members in _defs:
+        for _a in _members:
+            _m[_a] = _meta
+    META_OF[_cat] = _m
+
+def _collect_stories(nodes):
+    out = []
+    for n in nodes:
+        if n.get('type') == 'story':
+            out.append(n)
+        else:
+            out.extend(_collect_stories(n.get('children', [])))
+    return out
+
+def apply_metagroups(week):
+    """Restructure the modality & theme categories of one week from a flat area ->
+    stories list into meta_area -> group(original area) -> stories, so they mirror
+    the disease hierarchy. Stable meta order keeps columns aligned across weeks."""
+    for cat in ('modality', 'theme'):
+        areas = week['categories'].get(cat)
+        if not areas:
+            continue
+        order = META_ORDER[cat]
+        buckets = {}
+        for area in areas:
+            meta = META_OF[cat].get(area['area'].strip().lower(), 'Other')
+            grp = {'type': 'group', 'label': area['area'],
+                   'children': _collect_stories(area['children'])}
+            buckets.setdefault(meta, []).append(grp)
+        new_areas = []
+        for idx, meta in enumerate(order):
+            if buckets.get(meta):
+                # sort member groups by story count (desc), 'Other'-ish last by name
+                grps = sorted(buckets[meta], key=lambda g: (-len(_collect_stories(g['children'])),
+                                                            g['label'].lower()))
+                new_areas.append({'area': meta, 'order': idx, 'children': grps})
+        for meta in buckets:
+            if meta not in order:
+                new_areas.append({'area': meta, 'order': len(order), 'children': buckets[meta]})
+        week['categories'][cat] = new_areas
+
 _reg('modality', [
     'cell therapy', 'gene therapy', 'gene editing', 'drug delivery', 'techbio',
     'platforms', 'rna', 'radiopharma', 'radiopharmaceuticals', 'protein degradation',
@@ -1536,6 +1617,7 @@ def build(paths):
     for w in weeks:
         for area in w['categories'].get('disease', []):
             apply_subgroups(area)
+        apply_metagroups(w)   # modality & theme: flat areas -> meta -> group -> stories
     validate(weeks)
     return {'weeks': weeks, 'generated': True}
 
